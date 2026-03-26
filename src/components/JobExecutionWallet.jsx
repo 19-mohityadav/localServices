@@ -1,21 +1,10 @@
 import { useState, useEffect } from 'react'
 
-const CHECKLIST = [
-  { id: 1, label: 'Site assessment & client brief', done: true },
-  { id: 2, label: 'Unpack & inspect all equipment', done: true },
-  { id: 3, label: 'Install smart hub & wiring', done: true },
-  { id: 4, label: 'Configure lighting zones', done: false },
-  { id: 5, label: 'Connect HVAC & thermostat', done: false },
-  { id: 6, label: 'Test all automations end-to-end', done: false },
-  { id: 7, label: 'Client walkthrough & sign-off', done: false },
-]
 
 const MILESTONES = [
   { label: 'Job Accepted', status: 'done', time: '09:00 AM' },
-  { label: 'En Route', status: 'done', time: '09:15 AM' },
-  { label: 'Arrived & Started', status: 'done', time: '09:30 AM' },
-  { label: 'In Progress', status: 'active', time: 'Now' },
-  { label: 'Pending Completion', status: 'upcoming', time: '--' },
+  { label: 'Arrived & Started', status: 'active', time: 'Now' },
+  { label: 'Job Completed', status: 'upcoming', time: '--' },
   { label: 'Payment Released', status: 'upcoming', time: '--' },
 ]
 
@@ -27,30 +16,11 @@ const WALLET_TRANSACTIONS = [
   { label: 'Electrician – Meera', amount: '+₹2,100', time: 'Mar 23', type: 'credit' },
 ]
 
-function useTimer(initial = 5085) {
-  const [seconds, setSeconds] = useState(initial)
-  useEffect(() => {
-    const id = setInterval(() => setSeconds(s => s + 1), 1000)
-    return () => clearInterval(id)
-  }, [])
-  const h = String(Math.floor(seconds / 3600)).padStart(2, '0')
-  const m = String(Math.floor((seconds % 3600) / 60)).padStart(2, '0')
-  const s = String(seconds % 60).padStart(2, '0')
-  return `${h}:${m}:${s}`
-}
-
 export default function JobExecutionWallet({ job, onBack }) {
-  const timer = useTimer()
-  const [checklist, setChecklist] = useState(CHECKLIST)
   const [walletBalance] = useState(34450)
   const [pendingEarning] = useState(job?.bidPrice ?? job?.budgetMin ?? 800)
+  const [isAccepted, setIsAccepted] = useState(false)
 
-  const doneCount = checklist.filter(c => c.done).length
-  const progress = Math.round((doneCount / checklist.length) * 100)
-
-  const toggleCheck = (id) => {
-    setChecklist(prev => prev.map(c => c.id === id ? { ...c, done: !c.done } : c))
-  }
 
   return (
     <div style={{ display: 'flex', gap: '1.5rem' }}>
@@ -77,126 +47,119 @@ export default function JobExecutionWallet({ job, onBack }) {
               {job?.address ?? 'Sector 21, Gurgaon'} · Bid: ₹{(job?.bidPrice ?? job?.budgetMin ?? 800).toLocaleString()}
             </p>
           </div>
-          <div style={{
-            marginLeft: 'auto', background: 'linear-gradient(135deg, var(--primary), var(--primary-container))',
-            borderRadius: 'var(--radius-lg)', padding: '0.6rem 1.2rem', textAlign: 'center', flexShrink: 0,
-          }}>
-            <div style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.75)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>Duration</div>
-            <div style={{ fontSize: '1.4rem', fontWeight: 800, color: 'white', fontVariantNumeric: 'tabular-nums', letterSpacing: '0.05em' }}>{timer}</div>
-          </div>
         </div>
 
-        {/* Client Card */}
-        <section style={{
-          background: '#fff', borderRadius: 'var(--radius-xl)', padding: '1.2rem 1.5rem',
-          border: '1px solid var(--outline-variant)', boxShadow: 'var(--shadow-sm)',
-          display: 'flex', alignItems: 'center', gap: '1rem',
-        }}>
-          <div style={{
-            width: '48px', height: '48px', borderRadius: '50%', background: 'rgba(49,130,206,0.12)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700,
-            color: '#3182ce', fontSize: '1rem', flexShrink: 0,
-          }}>SJ</div>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontWeight: 700, fontSize: '0.95rem' }}>Sarah Jenkins</div>
-            <div style={{ fontSize: '0.75rem', color: 'var(--on-surface-variant)' }}>Client · Verified ID · Rated 4.8 ★</div>
-          </div>
-          <div style={{ display: 'flex', gap: '0.5rem' }}>
-            <button className="btn btn--ghost" style={{ borderRadius: '50%', padding: '0.4rem', border: '1px solid var(--outline-variant)' }}>
-              <span className="material-icons" style={{ fontSize: '1.1rem' }}>chat</span>
-            </button>
-            <button className="btn btn--ghost" style={{ borderRadius: '50%', padding: '0.4rem', border: '1px solid var(--outline-variant)' }}>
-              <span className="material-icons" style={{ fontSize: '1.1rem' }}>call</span>
-            </button>
-          </div>
-        </section>
-
-        {/* Service Checklist */}
-        <section style={{
-          background: '#fff', borderRadius: 'var(--radius-xl)', padding: '1.5rem',
-          border: '1px solid var(--outline-variant)', boxShadow: 'var(--shadow-sm)',
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
-            <span className="material-icons" style={{ color: 'var(--primary)', fontSize: '1.1rem' }}>fact_check</span>
-            <h3 style={{ fontSize: '1rem', fontWeight: 700, flex: 1 }}>Service Checklist</h3>
-            <span style={{ fontSize: '0.78rem', color: 'var(--on-surface-variant)', fontWeight: 600 }}>{doneCount}/{checklist.length} done</span>
-          </div>
-
-          {/* Progress bar */}
-          <div style={{ height: '6px', borderRadius: '6px', background: 'var(--outline-variant)', overflow: 'hidden', marginBottom: '1.2rem' }}>
+        {/* Bid Status or Execution Content */}
+        {!isAccepted ? (
+          <section style={{
+            background: '#fff', borderRadius: 'var(--radius-xl)', padding: '2.5rem 2rem',
+            border: '2px dashed var(--outline-variant)', textAlign: 'center',
+            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1.5rem'
+          }}>
             <div style={{
-              height: '100%', borderRadius: '6px', background: 'linear-gradient(90deg, var(--primary), #38a169)',
-              width: `${progress}%`, transition: 'width 0.4s ease',
-            }} />
-          </div>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
-            {checklist.map(item => (
-              <div
-                key={item.id}
-                onClick={() => toggleCheck(item.id)}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: '0.8rem',
-                  padding: '0.6rem 0.8rem', borderRadius: 'var(--radius-md)',
-                  cursor: 'pointer', transition: 'background 0.15s',
-                  background: item.done ? 'rgba(56,161,105,0.06)' : 'transparent',
-                  border: item.done ? '1px solid rgba(56,161,105,0.2)' : '1px solid transparent',
-                }}
-              >
-                <span className="material-icons" style={{
-                  color: item.done ? '#38a169' : 'var(--outline-variant)',
-                  fontSize: '1.2rem', transition: 'color 0.2s', flexShrink: 0,
-                }}>
-                  {item.done ? 'check_circle' : 'radio_button_unchecked'}
-                </span>
-                <span style={{
-                  fontSize: '0.85rem', color: item.done ? 'var(--on-surface-variant)' : 'var(--on-surface)',
-                  textDecoration: item.done ? 'line-through' : 'none', transition: 'color 0.2s',
-                }}>{item.label}</span>
+              width: '80px', height: '80px', borderRadius: '50%', background: 'rgba(214,158,46,0.1)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center'
+            }}>
+              <span className="material-icons" style={{ color: '#d69e2e', fontSize: '2.5rem' }}>hourglass_empty</span>
+            </div>
+            <div>
+              <h3 style={{ fontSize: '1.4rem', fontWeight: 800, marginBottom: '0.5rem' }}>Bid Status: Pending Approval</h3>
+              <p style={{ fontSize: '0.9rem', color: 'var(--on-surface-variant)', maxWidth: '350px', lineHeight: 1.6 }}>
+                Your bid of <strong>₹{pendingEarning.toLocaleString()}</strong> has been submitted. The customer is currently reviewing proposals.
+              </p>
+            </div>
+            <div style={{ padding: '0.8rem 1.2rem', background: 'var(--surface-container-low)', borderRadius: 'var(--radius-md)', fontSize: '0.85rem' }}>
+              <span className="material-icons" style={{ fontSize: '1rem', verticalAlign: 'middle', marginRight: '6px', color: 'var(--primary)' }}>info</span>
+              Bids usually get accepted within <strong>2-4 hours</strong>.
+            </div>
+            
+            {/* Simulation Button for Demo */}
+            <button 
+              className="btn btn--secondary" 
+              style={{ marginTop: '1rem', background: 'var(--surface-container-high)', border: '1px solid var(--outline-variant)' }}
+              onClick={() => setIsAccepted(true)}
+            >
+              Simulate Acceptance (Demo)
+            </button>
+          </section>
+        ) : (
+          <>
+            {/* Client Card */}
+            <section style={{
+              background: '#fff', borderRadius: 'var(--radius-xl)', padding: '1.2rem 1.5rem',
+              border: '1px solid var(--outline-variant)', boxShadow: 'var(--shadow-sm)',
+              display: 'flex', alignItems: 'center', gap: '1rem',
+            }}>
+              <div style={{
+                width: '48px', height: '48px', borderRadius: '50%', background: 'rgba(49,130,206,0.12)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700,
+                color: '#3182ce', fontSize: '1rem', flexShrink: 0,
+              }}>{job?.customerName?.charAt(0) || 'S'}{job?.customerName?.split(' ')[1]?.charAt(0) || 'J'}</div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: 700, fontSize: '0.95rem' }}>{job?.customerName || 'Sarah Jenkins'}</div>
+                <div style={{ fontSize: '0.75rem', color: 'var(--on-surface-variant)' }}>Verified Client · Rated 4.8 ★</div>
               </div>
-            ))}
-          </div>
-        </section>
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <button className="btn btn--ghost" style={{ borderRadius: '50%', padding: '0.4rem', border: '1px solid var(--outline-variant)' }}>
+                  <span className="material-icons" style={{ fontSize: '1.1rem' }}>chat</span>
+                </button>
+                <button className="btn btn--ghost" style={{ borderRadius: '50%', padding: '0.4rem', border: '1px solid var(--outline-variant)' }}>
+                  <span className="material-icons" style={{ fontSize: '1.1rem' }}>call</span>
+                </button>
+              </div>
+            </section>
 
-        {/* Milestone Tracker */}
-        <section style={{
-          background: '#fff', borderRadius: 'var(--radius-xl)', padding: '1.5rem',
-          border: '1px solid var(--outline-variant)', boxShadow: 'var(--shadow-sm)',
-        }}>
-          <h3 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '1.2rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <span className="material-icons" style={{ color: 'var(--primary)', fontSize: '1.1rem' }}>linear_scale</span>
-            Job Milestones
-          </h3>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-            {MILESTONES.map((m, i) => (
-              <div key={i} style={{ display: 'flex', gap: '1rem', alignItems: 'flex-start' }}>
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '24px', flexShrink: 0 }}>
-                  <div style={{
-                    width: '22px', height: '22px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    background: m.status === 'done' ? '#38a169' : m.status === 'active' ? 'var(--primary)' : 'var(--outline-variant)',
-                    flexShrink: 0,
-                  }}>
-                    {m.status === 'done' && <span className="material-icons" style={{ color: 'white', fontSize: '0.85rem' }}>check</span>}
-                    {m.status === 'active' && <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'white' }} />}
+            {/* Milestone Tracker */}
+            <section style={{
+              background: '#fff', borderRadius: 'var(--radius-xl)', padding: '1.5rem',
+              border: '1px solid var(--outline-variant)', boxShadow: 'var(--shadow-sm)',
+            }}>
+              <h3 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '1.2rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <span className="material-icons" style={{ color: 'var(--primary)', fontSize: '1.1rem' }}>linear_scale</span>
+                Job Milestones
+              </h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+                {MILESTONES.map((m, i) => (
+                  <div key={i} style={{ display: 'flex', gap: '1rem', alignItems: 'flex-start' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '24px', flexShrink: 0 }}>
+                      <div style={{
+                        width: '22px', height: '22px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        background: m.status === 'done' ? '#38a169' : m.status === 'active' ? 'var(--primary)' : 'var(--outline-variant)',
+                        flexShrink: 0,
+                      }}>
+                        {m.status === 'done' && <span className="material-icons" style={{ color: 'white', fontSize: '0.85rem' }}>check</span>}
+                        {m.status === 'active' && <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'white' }} />}
+                      </div>
+                      {i < MILESTONES.length - 1 && (
+                        <div style={{
+                          width: '2px', height: '28px',
+                          background: m.status === 'done' ? '#38a169' : 'var(--outline-variant)',
+                        }} />
+                      )}
+                    </div>
+                    <div style={{ paddingBottom: i < MILESTONES.length - 1 ? '0.5rem' : 0 }}>
+                      <div style={{
+                        fontSize: '0.85rem', fontWeight: m.status === 'active' ? 700 : 500,
+                        color: m.status === 'upcoming' ? 'var(--on-surface-variant)' : 'var(--on-surface)',
+                      }}>{m.label}</div>
+                      <div style={{ fontSize: '0.7rem', color: m.status === 'active' ? 'var(--primary)' : 'var(--outline)', fontWeight: m.status === 'active' ? 600 : 400 }}>{m.time}</div>
+                    </div>
                   </div>
-                  {i < MILESTONES.length - 1 && (
-                    <div style={{
-                      width: '2px', height: '28px',
-                      background: m.status === 'done' ? '#38a169' : 'var(--outline-variant)',
-                    }} />
-                  )}
-                </div>
-                <div style={{ paddingBottom: i < MILESTONES.length - 1 ? '0.5rem' : 0 }}>
-                  <div style={{
-                    fontSize: '0.85rem', fontWeight: m.status === 'active' ? 700 : 500,
-                    color: m.status === 'upcoming' ? 'var(--on-surface-variant)' : 'var(--on-surface)',
-                  }}>{m.label}</div>
-                  <div style={{ fontSize: '0.7rem', color: m.status === 'active' ? 'var(--primary)' : 'var(--outline)', fontWeight: m.status === 'active' ? 600 : 400 }}>{m.time}</div>
-                </div>
+                ))}
               </div>
-            ))}
-          </div>
-        </section>
+            </section>
+            
+            {/* Mark Complete Button */}
+            <button
+              className="btn btn--primary"
+              style={{ width: '100%', padding: '0.8rem', fontSize: '0.95rem', fontWeight: 700, marginTop: '1rem' }}
+              onClick={onBack}
+            >
+              <span className="material-icons" style={{ fontSize: '1.2rem', verticalAlign: 'middle', marginRight: '8px' }}>check_circle</span>
+              Mark Job as Complete
+            </button>
+          </>
+        )}
       </div>
 
       {/* Right: Wallet */}
@@ -297,15 +260,6 @@ export default function JobExecutionWallet({ job, onBack }) {
           </div>
         </section>
 
-        {/* Mark Complete Button */}
-        <button
-          className="btn btn--primary"
-          style={{ width: '100%', padding: '0.75rem', fontSize: '0.9rem', fontWeight: 700 }}
-          onClick={onBack}
-        >
-          <span className="material-icons" style={{ fontSize: '1rem', verticalAlign: 'middle', marginRight: '6px' }}>task_alt</span>
-          Mark Job as Complete
-        </button>
       </div>
     </div>
   )
