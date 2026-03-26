@@ -32,7 +32,7 @@ export default function AdminDashboard() {
           </a>
           <a className="flex items-center gap-3 px-4 py-3 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl font-inter text-sm font-semibold uppercase tracking-widest transition-transform duration-200 hover:translate-x-1" href="#">
             <span className="text-xl">📜</span>
-            <span>Live Log Activity</span>
+            <span>Live Activity</span>
           </a>
           <a className="flex items-center gap-3 px-4 py-3 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl font-inter text-sm font-semibold uppercase tracking-widest transition-transform duration-200 hover:translate-x-1" href="#">
             <span className="text-xl">⚙️</span>
@@ -133,48 +133,32 @@ export default function AdminDashboard() {
               <div className="bg-surface-container-lowest p-8 rounded-xl shadow-[0_12px_32px_0_rgba(0,0,0,0.04)]">
                 <div className="flex justify-between items-center mb-6">
                   <h2 className="text-xl font-headline font-bold text-primary">Live Activity Logs</h2>
-                  <button className="text-xs font-bold text-primary flex items-center gap-1 hover:underline">
-                    View Full Audit <span className="material-symbols-outlined text-sm" data-icon="arrow_outward">arrow_outward</span>
-                  </button>
                 </div>
-                <div className="max-h-[300px] overflow-y-auto custom-scrollbar pr-2">
-                  <div className="space-y-4">
-
-                    <div className="flex gap-4 p-4 rounded-xl hover:bg-slate-50 transition-colors border-l-4 border-green-500 bg-white shadow-sm">
-                      <span className="text-[10px] font-bold text-secondary w-12 pt-1 uppercase">14:02</span>
-                      <div className="flex-1">
-                        <p className="text-sm font-semibold text-primary">Lina Brooks <span className="font-normal text-secondary">completed</span> Home Deep Clean</p>
-                        <p className="text-[10px] text-secondary mt-1 tracking-tight">Booking ID: #LCS-9921 • Payment Processed</p>
+                <div className="max-h-[380px] overflow-y-auto custom-scrollbar pr-2">
+                  <div className="space-y-3">
+                    {[
+                      { id: 1, time: "14:02", user: "Lina Brooks", action: "completed Home Deep Clean", details: "Booking ID: #LCS-9921 • Payment Processed", icon: "✅", statusColor: "text-green-500", borderColor: "border-green-500" },
+                      { id: 2, time: "13:58", user: "Derrick Mason", action: "placed bid for Pipe Repair", details: "Awaiting client response • 3 bids", icon: "⏳", statusColor: "text-yellow-500", borderColor: "border-yellow-500" },
+                      { id: 3, time: "13:45", user: "System Alert", action: "failed login attempt", details: "IP: 192.168.1.104 • Suspicious pattern detected", icon: "⚠️", statusColor: "text-red-500", borderColor: "border-red-500" },
+                      { id: 4, time: "13:30", user: "Kevin Hart", action: "verified as Master Plumber", details: "Credentials checked • Account upgraded", icon: "🛡️", statusColor: "text-blue-500", borderColor: "border-blue-500" },
+                    ].map((log) => (
+                      <div key={log.id} className={`flex gap-4 p-4 rounded-xl hover:bg-slate-50 transition-all border-l-4 ${log.borderColor} bg-white shadow-sm group/log`}>
+                        <div className="w-16 flex-shrink-0">
+                          <span className="text-xs font-headline font-bold text-slate-500 uppercase tracking-tight">{log.time}</span>
+                          <span className="block text-[8px] text-slate-300 font-bold uppercase tracking-widest mt-0.5">Today</span>
+                        </div>
+                        <div className="flex-1">
+                          <p className="text-sm font-semibold text-primary">
+                            <span className="text-blue-600 dark:text-blue-400">{log.user}</span>
+                            <span className="font-normal text-secondary ml-1.5">{log.action}</span>
+                          </p>
+                          <p className="text-[10px] text-slate-400 mt-1 font-medium tracking-wide">{log.details}</p>
+                        </div>
+                        <span className={`text-xl flex items-center justify-center transition-transform group-hover/log:scale-125 ${log.statusColor}`}>
+                          {log.icon}
+                        </span>
                       </div>
-                      <span className="material-symbols-outlined text-green-500" data-icon="check_circle">check_circle</span>
-                    </div>
-
-                    <div className="flex gap-4 p-4 rounded-xl hover:bg-slate-50 transition-colors border-l-4 border-orange-400 bg-white shadow-sm">
-                      <span className="text-[10px] font-bold text-secondary w-12 pt-1 uppercase">13:58</span>
-                      <div className="flex-1">
-                        <p className="text-sm font-semibold text-primary">Derrick Mason <span className="font-normal text-secondary">placed bid</span> for Pipe Repair</p>
-                        <p className="text-[10px] text-secondary mt-1 tracking-tight">Awaiting client response • 3 competitive bids</p>
-                      </div>
-                      <span className="material-symbols-outlined text-orange-400" data-icon="pending">pending</span>
-                    </div>
-
-                    <div className="flex gap-4 p-4 rounded-xl hover:bg-slate-50 transition-colors border-l-4 border-error bg-white shadow-sm">
-                      <span className="text-[10px] font-bold text-secondary w-12 pt-1 uppercase">13:45</span>
-                      <div className="flex-1">
-                        <p className="text-sm font-semibold text-primary">System Alert <span className="font-normal text-secondary">failed login</span> attempt</p>
-                        <p className="text-[10px] text-secondary mt-1 tracking-tight">IP: 192.168.1.104 • Suspicious pattern detected</p>
-                      </div>
-                      <span className="material-symbols-outlined text-error" data-icon="warning">warning</span>
-                    </div>
-
-                    <div className="flex gap-4 p-4 rounded-xl hover:bg-slate-50 transition-colors border-l-4 border-green-500 bg-white shadow-sm">
-                      <span className="text-[10px] font-bold text-secondary w-12 pt-1 uppercase">13:30</span>
-                      <div className="flex-1">
-                        <p className="text-sm font-semibold text-primary">Kevin Hart <span className="font-normal text-secondary">verified</span> as Master Plumber</p>
-                        <p className="text-[10px] text-secondary mt-1 tracking-tight">Credentials checked • Account upgraded</p>
-                      </div>
-                      <span className="material-symbols-outlined text-green-500" data-icon="verified">verified</span>
-                    </div>
+                    ))}
                   </div>
                 </div>
               </div>
