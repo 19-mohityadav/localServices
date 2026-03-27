@@ -143,6 +143,19 @@ export default function PostRequestFlow({ onClose }) {
         if (insertError) throw insertError
       }
 
+      // Geocode the location to get lat/lng
+      let latitude = null, longitude = null
+      try {
+        const geoRes = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(form.location)}&limit=1`)
+        const geoData = await geoRes.json()
+        if (geoData && geoData.length > 0) {
+          latitude = parseFloat(geoData[0].lat)
+          longitude = parseFloat(geoData[0].lon)
+        }
+      } catch (geoErr) {
+        console.warn('Geocoding failed, posting without coordinates:', geoErr)
+      }
+
       const { error } = await supabase.from('jobs').insert([{
         consumer_id: user.id,
         title: form.title,
@@ -150,7 +163,9 @@ export default function PostRequestFlow({ onClose }) {
         category: form.service,
         location: form.location,
         budget: parseFloat(form.budgetMax) || parseFloat(form.budgetMin) || 0,
-        status: 'pending'
+        status: 'pending',
+        latitude,
+        longitude
       }])
 
       if (error) throw error
@@ -538,6 +553,19 @@ export default function PostRequestFlow({ onClose }) {
               const { data: { user } } = await supabase.auth.getUser()
               if (!user) throw new Error('User not found')
 
+              // Geocode the location to get lat/lng
+              let latitude = null, longitude = null
+              try {
+                const geoRes = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(form.location)}&limit=1`)
+                const geoData = await geoRes.json()
+                if (geoData && geoData.length > 0) {
+                  latitude = parseFloat(geoData[0].lat)
+                  longitude = parseFloat(geoData[0].lon)
+                }
+              } catch (geoErr) {
+                console.warn('Geocoding failed, posting without coordinates:', geoErr)
+              }
+
               const { error } = await supabase.from('jobs').insert([{
                 consumer_id: user.id,
                 title: form.title,
@@ -545,7 +573,9 @@ export default function PostRequestFlow({ onClose }) {
                 category: form.service,
                 location: form.location,
                 budget: parseFloat(form.budgetMax) || 0,
-                status: 'pending'
+                status: 'pending',
+                latitude,
+                longitude
               }])
 
               if (error) throw error
