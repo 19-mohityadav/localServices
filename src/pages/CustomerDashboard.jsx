@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import '../App.css'
 import PostRequestFlow from '../components/PostRequestFlow'
@@ -82,6 +82,14 @@ export default function CustomerDashboard() {
   const [minRating, setMinRating] = useState(0)
   const [minTrustScore, setMinTrustScore] = useState(0)
   const [maxRadius, setMaxRadius] = useState(1)
+
+  // Sync search query when location state changes (e.g. chatbot navigation)
+  useEffect(() => {
+    if (navLocation.state?.searchQuery) {
+      setSearchQuery(navLocation.state.searchQuery)
+      setActiveTab('dashboard')
+    }
+  }, [navLocation.state?.searchQuery, navLocation.key])
 
   const [rating, setRating] = useState(0)
   const [hoverRating, setHoverRating] = useState(0)
