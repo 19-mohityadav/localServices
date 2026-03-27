@@ -16,12 +16,79 @@ const MOCK_SCHEDULE = [
 
 const SIDEBAR_LINKS = [
   { id: 'dashboard', icon: 'dashboard', label: 'Dashboard' },
-  { id: 'jobs', icon: 'work', label: 'Jobs' },
+  { id: 'jobs', icon: 'work', label: 'Explore Jobs' },
+  { id: 'my_bids', icon: 'gavel', label: 'My Bids' },
   { id: 'earnings', icon: 'payments', label: 'Earnings' },
-  { id: 'insights', icon: 'insights', label: 'Insights' },
   { id: 'profile', icon: 'person', label: 'Profile' },
-  { id: 'support', icon: 'help', label: 'Support' },
 ]
+
+function ProviderBidsView({ providerId }) {
+  const [bids, setBids] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    if (!providerId) return
+    async function fetchBids() {
+      const { data, error } = await supabase
+        .from('bids')
+        .select('*, jobs(*)')
+        .eq('provider_id', providerId)
+        .order('created_at', { ascending: false })
+      
+      if (error) {
+        console.error('Error fetching provider bids:', error)
+      } else {
+        setBids(data || [])
+      }
+      setLoading(false)
+    }
+    fetchBids()
+  }, [providerId])
+
+  if (loading) return <div style={{ textAlign: 'center', padding: '3rem' }}>⏳ Loading your bids...</div>
+
+  return (
+    <div style={{ animation: 'fadeIn 0.3s' }}>
+      <h2 style={{ fontSize: '1.5rem', fontWeight: 800, marginBottom: '1.5rem' }}>My Submitted Bids</h2>
+      {bids.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: '3rem', background: '#fff', borderRadius: 'var(--radius-xl)', border: '1px solid var(--outline-variant)' }}>
+            <span className="material-icons" style={{ fontSize: '3rem', color: 'var(--outline-variant)', marginBottom: '1rem' }}>gavel</span>
+            <p>You haven't placed any bids yet.</p>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          {bids.map(bid => (
+            <div key={bid.id} style={{ background: '#fff', borderRadius: 'var(--radius-lg)', padding: '1.5rem', border: '1px solid var(--outline-variant)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.4rem' }}>
+                  <span style={{ fontSize: '0.65rem', background: bid.status === 'accepted' ? 'rgba(56,161,105,0.1)' : 'var(--surface-container)', color: bid.status === 'accepted' ? '#38a169' : 'var(--on-surface-variant)', padding: '0.2rem 0.6rem', borderRadius: '40px', fontWeight: 800, textTransform: 'uppercase' }}>
+                    {bid.status}
+                  </span>
+                  <span style={{ fontSize: '0.7rem', color: 'var(--outline)' }}>
+                     Bid on: {new Date(bid.created_at).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
+                  </span>
+                </div>
+                <h3 style={{ fontSize: '1.1rem', fontWeight: 700 }}>{bid.jobs?.title || 'Unknown Job'}</h3>
+                <p style={{ fontSize: '0.85rem', color: 'var(--on-surface-variant)', marginBottom: '0.4rem' }}>{bid.jobs?.location}</p>
+                <div style={{ fontSize: '0.75rem', color: 'var(--outline)', display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                  <span>📅 Client Booked: {new Date(bid.jobs?.created_at).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}</span>
+                  {bid.status === 'accepted' && bid.jobs?.accepted_at && (
+                    <span style={{ color: '#38a169', fontWeight: 600 }}>✅ Accepted At: {new Date(bid.jobs.accepted_at).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}</span>
+                  )}
+                </div>
+              </div>
+              <div style={{ textAlign: 'right' }}>
+                <div style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--primary)' }}>₹{bid.amount}</div>
+                {bid.status === 'accepted' && <button className="btn btn--primary" style={{ marginTop: '0.5rem', padding: '0.4rem 0.8rem', fontSize: '0.75rem' }}>Open Workspace</button>}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 
 export default function ProviderDashboard() {
   const [activeTab, setActiveTab] = useState('dashboard')
@@ -230,7 +297,12 @@ export default function ProviderDashboard() {
         {!activeJob && activeTab === 'profile' && (
           <ServiceProviderProfile isEditable={true} />
         )}
-        {!activeJob && activeTab !== 'jobs' && activeTab !== 'profile' && (<div className="dashboard-grid">
+        {!activeJob && activeTab === 'my_bids' && (
+          <div style={{ padding: '0 1rem' }}>
+            <ProviderBidsView providerId={user?.id} />
+          </div>
+        )}
+        {!activeJob && activeTab !== 'jobs' && activeTab !== 'profile' && activeTab !== 'my_bids' && (<div className="dashboard-grid">
           {/* Left Column */}
           <div className="dashboard-col-left">
 
@@ -282,7 +354,7 @@ export default function ProviderDashboard() {
                         </div>
                         <p style={{ fontSize: '0.78rem', color: 'var(--on-surface-variant)', marginBottom: '0.6rem' }}>
                           <span className="material-icons" style={{ fontSize: '0.8rem', verticalAlign: 'middle', marginRight: '2px' }}>location_on</span>
-                          {req.address} &nbsp;·&nbsp; {req.distance} away &nbsp;·&nbsp; {req.postedAt}
+                          {req.address} &nbsp;·&nbsp; {req.distance} away &nbsp;·&nbsp; {new Date(req.created_at).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
                         </p>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                           <div style={{ fontSize: '0.9rem', color: 'var(--primary)', fontWeight: 700 }}>
@@ -540,10 +612,10 @@ export default function ProviderDashboard() {
                       </div>
                     </div>
                     <div>
-                      <h4 style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--on-surface)', marginBottom: '0.5rem' }}>Preferred Time</h4>
+                      <h4 style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--on-surface)', marginBottom: '0.5rem' }}>Time Booked</h4>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem', color: 'var(--on-surface-variant)' }}>
                         <span className="material-icons" style={{ fontSize: '1.1rem', color: 'var(--primary)' }}>schedule</span>
-                        27th March, 10 AM - 12 PM
+                        {new Date(selectedRequest.created_at).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
                       </div>
                     </div>
                   </div>

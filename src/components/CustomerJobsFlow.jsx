@@ -322,17 +322,24 @@ export default function CustomerJobsFlow() {
                       {job.category}
                     </span>
                     <span style={{ fontSize: '0.7rem', color: 'var(--outline)' }}>
-                      Posted {new Date(job.created_at).toLocaleDateString()}
+                      Booked: {new Date(job.created_at).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
                     </span>
                   </div>
                   <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--on-surface)' }}>{job.title}</h3>
-                  <p style={{ fontSize: '0.85rem', color: 'var(--on-surface-variant)' }}>{job.location}</p>
+                  <p style={{ fontSize: '0.85rem', color: 'var(--on-surface-variant)', marginBottom: '0.4rem' }}>{job.location}</p>
+                  
+                  {job.status === 'accepted' && job.accepted_at && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#38a169', fontSize: '0.75rem', fontWeight: 700 }}>
+                      <span className="material-icons" style={{ fontSize: '0.9rem' }}>check_circle</span>
+                      Accepted: {new Date(job.accepted_at).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
+                    </div>
+                  )}
                 </div>
                 <div style={{ textAlign: 'right' }}>
                   <div style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--primary)' }}>₹{job.budget}</div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#dd6b20', fontSize: '0.8rem', fontWeight: 600, marginTop: '0.2rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#dd6b20', fontSize: '0.8rem', fontWeight: 600, marginTop: '0.4rem' }}>
                     <span className="material-icons" style={{ fontSize: '1rem' }}>gavel</span>
-                    View Bids
+                    {job.status === 'accepted' ? 'View Details' : 'View Bids'}
                   </div>
                 </div>
               </div>
@@ -356,8 +363,16 @@ export default function CustomerJobsFlow() {
         </div>
         <div style={{ background: 'var(--surface-container-low)', padding: '1rem 1.5rem', borderRadius: 'var(--radius-lg)', marginBottom: '2rem', border: '1px solid var(--outline-variant)' }}>
             <h4 style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--outline)', textTransform: 'uppercase', marginBottom: '0.4rem' }}>For Request</h4>
-            <div style={{ fontSize: '1rem', fontWeight: 700 }}>{selectedJob.title}</div>
-            <div style={{ fontSize: '0.85rem', color: 'var(--on-surface-variant)' }}>{selectedJob.description}</div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <div>
+                <div style={{ fontSize: '1rem', fontWeight: 700 }}>{selectedJob.title}</div>
+                <div style={{ fontSize: '0.85rem', color: 'var(--on-surface-variant)' }}>{selectedJob.description}</div>
+              </div>
+              <div style={{ textAlign: 'right', fontSize: '0.75rem', color: 'var(--outline)' }}>
+                <div>Booked: {new Date(selectedJob.created_at).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}</div>
+                {selectedJob.accepted_at && <div style={{ color: '#38a169', fontWeight: 600 }}>Accepted: {new Date(selectedJob.accepted_at).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}</div>}
+              </div>
+            </div>
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
