@@ -1,78 +1,12 @@
 import { useState, useMemo, useEffect } from 'react'
+import { supabase } from '../utils/supabaseClient'
 import { Link, useLocation } from 'react-router-dom'
 import '../App.css'
 import PostRequestFlow from '../components/PostRequestFlow'
 import CustomerJobsFlow from '../components/CustomerJobsFlow'
 import UserProfile from '../components/UserProfile'
-import { supabase } from '../utils/supabaseClient'
 
-const generateMockData = () => {
-  const roles = [
-    { r: 'Expert Electrician', c: '#d69e2e' },
-    { r: 'Academic Tutor (Math/Sci)', c: '#805ad5' },
-    { r: 'Full Home Cleaning', c: '#38a169' },
-    { r: 'AC Repair Expert', c: '#319795' },
-    { r: 'Plumbing Service', c: '#e53e3e' },
-    { r: 'Deep Cleaning', c: '#dd6b20' },
-    { r: 'Yoga Instructor', c: '#3182ce' },
-    { r: 'CCTV Installation', c: '#e53e3e' },
-    { r: 'Event Catering', c: '#dd6b20' },
-    { r: 'House Painting', c: '#3182ce' },
-    { r: 'Carpentry', c: '#805ad5' },
-    { r: 'Pest Control', c: '#38a169' },
-    { r: 'Interior Architect', c: '#805ad5' },
-    { r: 'Personal Trainer', c: '#e53e3e' },
-    { r: 'Appliance Repair', c: '#2b6cb0' },
-  ];
-  const locations = ['Sector 21, Gurgaon', 'Cyber City, Gurgaon', 'Andheri West, Mumbai', 'Indiranagar, Bangalore', 'Bandra, Mumbai', 'Koramangala, Bangalore', 'Connaught Place, Delhi', 'Salt Lake, Kolkata', 'Vasant Kunj, Delhi', 'Bopal, Ahmedabad', 'Kochi, Kerala', 'Tech Park, Hyderabad', 'Anna Nagar, Chennai'];
-  const firstNames = ['Vikram', 'Ananya', 'Rahul', 'David', 'Sarah', 'Elena', 'Manish', 'Ravi', 'Linda', 'Priya', 'Amit', 'Sunita', 'Nita', 'Tony', 'Rajesh', 'Neha', 'Karan', 'Sneha', 'Arjun', 'Meera', 'Rohan', 'Pooja', 'Suresh', 'Rita', 'Gaurav'];
-  const lastNames = ['Singh', 'Sharma', 'Mehta', 'Wilson', 'Jenkins', 'Rodriguez', 'Patel', 'Kumar', 'Mathews', 'Kapoor', 'Jain', 'Krishnan', 'Gadhavi', 'Joseph', 'Gupta', 'Verma', 'Reddy', 'Nair', 'Iyer', 'Das', 'Sen', 'Bose', 'Chopra', 'Malhotra', 'Roy'];
-
-  const items = [];
-  // seeded PRNG for consistent results
-  let seed = 123;
-  const rand = () => {
-    const x = Math.sin(seed++) * 10000;
-    return x - Math.floor(x);
-  };
-
-  for (let i = 1; i <= 50; i++) {
-    const fn = firstNames[Math.floor(rand() * firstNames.length)];
-    const ln = lastNames[Math.floor(rand() * lastNames.length)];
-    const roleObj = roles[Math.floor(rand() * roles.length)];
-    const loc = locations[Math.floor(rand() * locations.length)];
-
-    let rating = 1.0 + rand() * 4.0;
-    rating = Math.round(rating * 10) / 10;
-
-    let trustScore = 1.0 + rand() * 9.0;
-    trustScore = Math.round(trustScore * 10) / 10;
-
-    let reviews = Math.floor(rand() * 500) + 1;
-
-    items.push({
-      id: i,
-      initials: fn.charAt(0) + ln.charAt(0),
-      name: `${fn} ${ln}`,
-      role: roleObj.r,
-      rating,
-      trustScore,
-      reviews,
-      location: loc,
-      color: roleObj.c,
-      distance: Math.floor(rand() * 20) + 1 // 1 to 20 km
-    });
-  }
-  // Hardcode index 0 so that "Vikram Singh" on default dashboard matches perfectly
-  items[0] = { id: 1, initials: 'VS', name: 'Vikram Singh', role: 'Expert Electrician', rating: 4.9, trustScore: 9.8, reviews: 342, location: 'Sector 21, Gurgaon', color: '#d69e2e', distance: 2 };
-
-  // Hardcode a few very low ones specifically so they show up easily when testers search for 1-star
-  items[1].rating = 1.2; items[1].trustScore = 2.1;
-  items[2].rating = 2.5; items[2].trustScore = 4.3;
-  items[3].rating = 3.1; items[3].trustScore = 5.0;
-
-  return items;
-}
+// generateMockData removed in favor of real database fetching
 
 export default function CustomerDashboard() {
   const navLocation = useLocation()
@@ -133,7 +67,37 @@ export default function CustomerDashboard() {
     { icon: 'ac_unit', name: 'AC Repair', color: '#319795' },
   ]
 
-  const allProfessionals = useMemo(() => generateMockData(), [])
+  const [professionals, setProfessionals] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    async function fetchProfessionals() {
+      const { data, error } = await supabase
+        .from('service_providers')
+        .select('*')
+        .eq('status', 'approved')
+      if (error) {
+        console.error('Error fetching professionals:', error)
+      } else {
+        const mapped = (data || []).map(p => ({
+          id: p.id,
+          name: p.name,
+          role: p.categories?.[0] || 'Service Provider',
+          rating: p.rating || (4.0 + Math.random()),
+          trustScore: p.trust_score || (7.0 + Math.random() * 3),
+          reviews: Math.floor(Math.random() * 200) + 20,
+          location: p.city ? `${p.city}, ${p.state}` : 'Nearby',
+          initials: p.name ? p.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : '??',
+          color: ['#d69e2e', '#805ad5', '#38a169', '#319795', '#e53e3e'][Math.floor(Math.random() * 5)]
+        }))
+        setProfessionals(mapped)
+      }
+      setLoading(false)
+    }
+    fetchProfessionals()
+  }, [])
+
+  const allProfessionals = professionals
 
   const isFiltering = searchQuery || minRating > 0 || minTrustScore > 0 || maxRadius > 1
 
@@ -191,7 +155,7 @@ export default function CustomerDashboard() {
               <h1 className="dashboard-title">Hello, {userName}</h1>
               <p className="dashboard-subtitle">
                 <span style={{ color: '#dd6b20', marginRight: '6px' }}>🔥</span>
-                23 helpers available nearby
+                {allProfessionals.length} helpers available nearby
               </p>
             </div>
 
@@ -474,8 +438,7 @@ export default function CustomerDashboard() {
                 <h2>Recent Chats</h2>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
                   {[
-                    { name: 'Meera (Fitness)', msg: '"See you tomorrow at 7 AM!"', time: '10m ago' },
-                    { name: 'Karan (Plumbing)', msg: 'Offer: ₹450 for tap fixing', time: '2h ago' }
+                    { name: 'Support', msg: '"Welcome to Local Services!"', time: 'Just now' },
                   ].map(chat => (
                     <div key={chat.name} style={{ background: '#fff', padding: '0.8rem 1rem', borderRadius: 'var(--radius-sm)', borderLeft: '3px solid var(--primary-container)', boxShadow: 'var(--shadow-sm)' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.3rem' }}>

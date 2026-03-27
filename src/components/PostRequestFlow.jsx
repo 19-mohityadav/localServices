@@ -114,9 +114,54 @@ export default function PostRequestFlow({ onClose }) {
   const [search, setSearch] = useState('')
   const [isPublishing, setIsPublishing] = useState(false)
 
-  // Audio recording states
-  const [isRecording, setIsRecording] = useState(false)
-  const [mediaRecorder, setMediaRecorder] = useState(null)
+  const handlePublish = async () => {
+    setIsPublishing(true)
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        alert('You must be logged in to post a request.')
+        return
+      }
+
+      // First, ensure the user exists in the consumers table
+      // (This is a safety check because auth.uid() might not be in consumers yet in some edge cases)
+      const { data: consumer, error: fetchError } = await supabase
+        .from('consumers')
+        .select('id')
+        .eq('id', user.id)
+        .single()
+
+      if (fetchError && fetchError.code !== 'PGRST116') {
+        throw fetchError
+      }
+
+      if (!consumer) {
+        // Create consumer profile if it doesn't exist
+        const { error: insertError } = await supabase
+          .from('consumers')
+          .insert([{ id: user.id, name: user.user_metadata?.full_name || 'Consumer' }])
+        if (insertError) throw insertError
+      }
+
+      const { error } = await supabase.from('jobs').insert([{
+        consumer_id: user.id,
+        title: form.title,
+        description: form.description,
+        category: form.service,
+        location: form.location,
+        budget: parseFloat(form.budgetMax) || parseFloat(form.budgetMin) || 0,
+        status: 'pending'
+      }])
+
+      if (error) throw error
+      setStep(6)
+    } catch (err) {
+      console.error('Error publishing job:', err)
+      alert('Failed to publish job: ' + err.message)
+    } finally {
+      setIsPublishing(false)
+    }
+  }
 
   const update = (k, v) => setForm(f => ({ ...f, [k]: v }))
 
