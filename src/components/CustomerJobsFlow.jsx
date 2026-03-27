@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../utils/supabaseClient'
 
-const JOB_TITLE = 'Plumbing Repair & Pipe Fixing'
 const CUSTOMER_NAME = 'You'
 
 async function sendBidAcceptedEmail(provider) {
@@ -30,25 +29,91 @@ export default function CustomerJobsFlow() {
   const [feedbackText, setFeedbackText] = useState('')
   const [rating, setRating] = useState(4)
   const [emailSent, setEmailSent] = useState(false)
-  const [providers, setProviders] = useState([])
-  const [loadingProviders, setLoadingProviders] = useState(true)
+  const [job, setJob] = useState(null)
+  const [bids, setBids] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [user, setUser] = useState(null)
 
   useEffect(() => {
-    async function fetchProviders() {
-      setLoadingProviders(true)
-      const { data, error } = await supabase
-        .from('service_providers')
-        .select('id, name, email, phone, trust_score, hourly_rate, categories, photo_url, city, state')
-        .eq('status', 'approved')
-      if (error) {
-        console.error('Error fetching providers:', error)
+    async function init() {
+      const { data: { user: authUser } } = await supabase.auth.getUser()
+      setUser(authUser)
+      if (authUser) {
+        fetchJobAndBids(authUser.id)
       } else {
-        setProviders(data || [])
+        setLoading(false)
       }
-      setLoadingProviders(false)
     }
-    fetchProviders()
+    init()
   }, [])
+
+  async function fetchJobAndBids(userId) {
+    setLoading(true)
+    try {
+      // 1. Get latest job for this consumer
+      const { data: jobData, error: jobError } = await supabase
+        .from('jobs')
+        .select('*')
+        .eq('consumer_id', userId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+
+      if (jobError) throw jobError
+      setJob(jobData)
+
+      if (jobData) {
+        // 2. Get bids for this job
+        const { data: bidsData, error: bidsError } = await supabase
+          .from('bids')
+          .select('*, service_providers(*)')
+          .eq('job_id', jobData.id)
+          .eq('status', 'pending')
+
+        if (bidsError) throw bidsError
+        setBids(bidsData || [])
+      }
+    } catch (err) {
+      console.error('Error fetching job/bids:', err)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleAcceptBid = async (bid) => {
+    try {
+      // 1. Update bid status
+      const { error: bidUpdateError } = await supabase
+        .from('bids')
+        .update({ status: 'accepted' })
+        .eq('id', bid.id)
+      
+      if (bidUpdateError) throw bidUpdateError
+
+      // 2. Update job status
+      const { error: jobUpdateError } = await supabase
+        .from('jobs')
+        .update({ status: 'accepted' })
+        .eq('id', job.id)
+      
+      if (jobUpdateError) throw jobUpdateError
+
+      // 3. Send email notification
+      if (bid.service_providers) {
+        await sendBidAcceptedEmail({
+          email: bid.service_providers.email,
+          name: bid.service_providers.name,
+          hourly_rate: bid.amount
+        })
+      }
+
+      setSelectedBid(bid)
+      setView('payment')
+    } catch (err) {
+      console.error('Error accepting bid:', err)
+      alert('Failed to accept bid: ' + err.message)
+    }
+  }
 
   /* ── VIEW 1: BIDS RECEIVED ── */
   if (view === 'bids') {
@@ -56,42 +121,49 @@ export default function CustomerJobsFlow() {
       <div style={{ maxWidth: '800px', margin: '0 auto' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '2rem' }}>
           <h1 style={{ fontSize: '1.8rem', fontWeight: 800 }}>
-            {loadingProviders ? '⏳ Loading Bids...' : `🔥 ${providers.length} Bid${providers.length !== 1 ? 's' : ''} Received`}
+            {loading ? '⏳ Loading Bids...' : job ? `🔥 ${bids.length} Bid${bids.length !== 1 ? 's' : ''} for "${job.title}"` : 'No Active Job Requests'}
           </h1>
         </div>
         <p style={{ fontSize: '0.9rem', color: 'var(--on-surface-variant)', marginBottom: '2rem' }}>
           Expert professionals are ready to assist you. Review their proposals and hire the best match for your project.
         </p>
 
-        {loadingProviders && (
+        {loading && (
           <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--on-surface-variant)' }}>
             <div style={{ fontSize: '2rem', marginBottom: '1rem' }}>⏳</div>
-            <p>Fetching available providers...</p>
+            <p>Fetching your bids...</p>
           </div>
         )}
 
-        {!loadingProviders && providers.length === 0 && (
+        {!loading && !job && (
           <div style={{ textAlign: 'center', padding: '3rem', background: '#fff', borderRadius: 'var(--radius-xl)', border: '1px solid var(--outline-variant)' }}>
-            <div style={{ fontSize: '2.5rem', marginBottom: '1rem' }}>🔍</div>
-            <h3 style={{ fontWeight: 700, marginBottom: '0.5rem' }}>No Approved Providers Yet</h3>
-            <p style={{ color: 'var(--on-surface-variant)', fontSize: '0.9rem' }}>There are no approved service providers available right now. Please check back later.</p>
+            <div style={{ fontSize: '2.5rem', marginBottom: '1rem' }}>📝</div>
+            <h3 style={{ fontWeight: 700, marginBottom: '0.5rem' }}>No Active Requests</h3>
+            <p style={{ color: 'var(--on-surface-variant)', fontSize: '0.9rem' }}>You haven't posted any job requests yet. Post a request to start receiving bids!</p>
+          </div>
+        )}
+
+        {!loading && job && bids.length === 0 && (
+          <div style={{ textAlign: 'center', padding: '3rem', background: '#fff', borderRadius: 'var(--radius-xl)', border: '1px solid var(--outline-variant)' }}>
+            <div style={{ fontSize: '2.5rem', marginBottom: '1rem' }}>⌛</div>
+            <h3 style={{ fontWeight: 700, marginBottom: '0.5rem' }}>Waiting for Bids</h3>
+            <p style={{ color: 'var(--on-surface-variant)', fontSize: '0.9rem' }}>Providers are reviewing your request. You'll see bids here as soon as they arrive.</p>
           </div>
         )}
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-          {providers.map((provider, i) => {
+          {bids.map((bid, i) => {
+            const provider = bid.service_providers || {}
             const initials = provider.name
               ? provider.name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)
               : '??'
             const trustScore = provider.trust_score ?? 0
             const isHighTrust = trustScore >= 8.5
             const location = [provider.city, provider.state].filter(Boolean).join(', ')
-            const serviceLabel = provider.categories?.length > 0
-              ? provider.categories.slice(0, 2).join(' · ')
-              : 'General Services'
+            const serviceLabel = provider.categories?.[0] || 'Professional Service'
 
             return (
-              <div key={provider.id} style={{ background: '#fff', borderRadius: 'var(--radius-xl)', padding: '1.5rem', border: '1px solid var(--outline-variant)', boxShadow: i === 0 ? 'var(--shadow-sm)' : 'none' }}>
+              <div key={bid.id} style={{ background: '#fff', borderRadius: 'var(--radius-xl)', padding: '1.5rem', border: '1px solid var(--outline-variant)', boxShadow: i === 0 ? 'var(--shadow-sm)' : 'none' }}>
                 <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'flex-start' }}>
                   {provider.photo_url ? (
                     <img src={provider.photo_url} alt={provider.name} style={{ width: '56px', height: '56px', borderRadius: '50%', objectFit: 'cover', border: '2px solid var(--outline-variant)' }} />
@@ -102,9 +174,9 @@ export default function CustomerJobsFlow() {
                   )}
                   <div style={{ flex: 1 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-                      <h3 style={{ fontSize: '1.1rem', fontWeight: 700 }}>{provider.name}</h3>
+                      <h3 style={{ fontSize: '1.1rem', fontWeight: 700 }}>{provider.name || 'Anonymous Provider'}</h3>
                       <div style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--primary)' }}>
-                        {provider.hourly_rate ? `₹${provider.hourly_rate}/hr` : 'Rate on request'}
+                        ₹{bid.amount}
                       </div>
                     </div>
 
@@ -120,13 +192,11 @@ export default function CustomerJobsFlow() {
                       )}
                     </div>
 
-                    {serviceLabel && (
-                      <p style={{ fontSize: '0.82rem', color: 'var(--on-surface-variant)', marginBottom: '1rem' }}>{serviceLabel}</p>
-                    )}
+                    <p style={{ fontSize: '0.82rem', color: 'var(--on-surface-variant)', marginBottom: '1rem' }}>{serviceLabel}</p>
 
                     <div style={{ display: 'flex', gap: '1rem' }}>
                       <button className="btn btn--outline" style={{ flex: 1, padding: '0.6rem' }}>View Profile</button>
-                      <button className="btn btn--primary" style={{ flex: 2, padding: '0.6rem' }} onClick={() => { setSelectedBid(provider); setView('bid_details') }}>Accept Proposal</button>
+                      <button className="btn btn--primary" style={{ flex: 2, padding: '0.6rem' }} onClick={() => handleAcceptBid(bid)}>Accept Bid</button>
                     </div>
                   </div>
                 </div>
@@ -172,15 +242,17 @@ export default function CustomerJobsFlow() {
 
         <div style={{ background: '#fff', borderRadius: 'var(--radius-xl)', padding: '2rem', border: '1px solid var(--outline-variant)', boxShadow: 'var(--shadow-sm)', marginBottom: '1.5rem' }}>
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: '1.5rem' }}>
-            <div style={{ width: '64px', height: '64px', borderRadius: '50%', background: 'rgba(49,130,206,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#3182ce', fontWeight: 700, fontSize: '1.4rem', marginBottom: '1rem' }}>MT</div>
-            <h3 style={{ fontSize: '1.2rem', fontWeight: 700, marginBottom: '0.2rem' }}>Marcus Thorne</h3>
-            <div style={{ fontSize: '0.8rem', color: 'var(--on-surface-variant)' }}>Plumbing Specialist</div>
+            <div style={{ width: '64px', height: '64px', borderRadius: '50%', background: 'rgba(49,130,206,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#3182ce', fontWeight: 700, fontSize: '1.4rem', marginBottom: '1rem' }}>
+              {selectedBid.service_providers?.name?.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2) || '??'}
+            </div>
+            <h3 style={{ fontSize: '1.2rem', fontWeight: 700, marginBottom: '0.2rem' }}>{selectedBid.service_providers?.name}</h3>
+            <div style={{ fontSize: '0.8rem', color: 'var(--on-surface-variant)' }}>{selectedBid.service_providers?.categories?.[0] || 'Professional'}</div>
           </div>
 
           <div style={{ borderTop: '2px dashed var(--outline-variant)', borderBottom: '2px dashed var(--outline-variant)', padding: '1.5rem 0', marginBottom: '1.5rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.8rem', fontSize: '0.9rem' }}>
               <span style={{ color: 'var(--on-surface-variant)' }}>Service Fee</span>
-              <strong>₹800</strong>
+              <strong>₹{selectedBid.amount}</strong>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem' }}>
               <span style={{ color: 'var(--on-surface-variant)' }}>Platform Fee</span>
@@ -190,7 +262,7 @@ export default function CustomerJobsFlow() {
 
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--primary)' }}>Total Secure Payment</span>
-            <span style={{ fontSize: '2rem', fontWeight: 800, color: 'var(--primary)' }}>₹850</span>
+            <span style={{ fontSize: '2rem', fontWeight: 800, color: 'var(--primary)' }}>₹{parseInt(selectedBid.amount) + 50}</span>
           </div>
         </div>
 

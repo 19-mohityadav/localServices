@@ -227,7 +227,7 @@ export default function ProviderDashboard() {
               <h1 className="dashboard-title">Good morning, Alex.</h1>
               <p className="dashboard-subtitle">
                 <span style={{ color: '#dd6b20', marginRight: '6px' }}>📍</span>
-                You have <strong>12 new requests</strong> in your current radius.
+                You have <strong>{visibleRequests.length} new requests</strong> in your area.
               </p>
             </div>
             <div className="dashboard-header__actions" style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
@@ -360,9 +360,9 @@ export default function ProviderDashboard() {
                           <span style={{
                             fontSize: '0.65rem', fontWeight: 700, padding: '2px 8px',
                             borderRadius: '100px', letterSpacing: '0.04em',
-                            background: req.urgency === 'Urgent' ? 'rgba(229,62,62,0.1)' : req.urgency === 'Flexible' ? 'rgba(56,161,105,0.1)' : 'rgba(49,130,206,0.1)',
-                            color: req.urgency === 'Urgent' ? '#e53e3e' : req.urgency === 'Flexible' ? '#38a169' : '#3182ce',
-                          }}>{req.urgency}</span>
+                            background: '#3182ce1a',
+                            color: '#3182ce',
+                          }}>Pending</span>
                         </div>
                         <p style={{ fontSize: '0.78rem', color: 'var(--on-surface-variant)', marginBottom: '0.6rem' }}>
                           <span className="material-icons" style={{ fontSize: '0.8rem', verticalAlign: 'middle', marginRight: '2px' }}>location_on</span>
@@ -370,8 +370,8 @@ export default function ProviderDashboard() {
                         </p>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                           <div style={{ fontSize: '0.9rem', color: 'var(--primary)', fontWeight: 700 }}>
-                            ₹{req.budgetMin.toLocaleString()} – ₹{req.budgetMax.toLocaleString()}
-                            <span style={{ fontSize: '0.7rem', color: 'var(--on-surface-variant)', fontWeight: 400, marginLeft: '4px' }}>Est. Budget</span>
+                            ₹{(req.budget || 0).toLocaleString()}
+                            <span style={{ fontSize: '0.7rem', color: 'var(--on-surface-variant)', fontWeight: 400, marginLeft: '4px' }}>Estimated Budget</span>
                           </div>
                           <div style={{ display: 'flex', gap: '0.5rem' }}>
                             <button
@@ -387,9 +387,10 @@ export default function ProviderDashboard() {
                               style={{ padding: '0.3rem 0.9rem', fontSize: '0.75rem', opacity: acceptedJobs.has(req.id) ? 0.7 : 1 }}
                               onClick={(e) => {
                                 e.stopPropagation();
+                                const budget = req.budget || 1000;
                                 setSelectedRequest(req)
                                 setIsPriceStep(true)
-                                setCurrentBidPrice(Math.round((req.budgetMin + req.budgetMax) / 2))
+                                setCurrentBidPrice(budget)
                               }}
                             >
                               {acceptedJobs.has(req.id) ? '✓ Bid Placed' : 'Place Bid'}
@@ -612,7 +613,7 @@ export default function ProviderDashboard() {
                   )}
                   <div>
                     <h3 style={{ fontSize: '1.4rem', fontWeight: 800 }}>{isPriceStep ? 'Set Your Price' : selectedRequest.title}</h3>
-                    <p style={{ fontSize: '0.85rem', color: 'var(--on-surface-variant)' }}>{isPriceStep ? `Customer Budget: ₹${selectedRequest.budgetMin} - ₹${selectedRequest.budgetMax}` : selectedRequest.category}</p>
+                    <p style={{ fontSize: '0.85rem', color: 'var(--on-surface-variant)' }}>{isPriceStep ? `Customer Budget: ₹${selectedRequest.budget || 0}` : selectedRequest.category}</p>
                   </div>
                 </div>
                 <button 
@@ -627,12 +628,12 @@ export default function ProviderDashboard() {
                 <>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1.5rem', marginBottom: '2rem' }}>
                     <div style={{ background: 'var(--surface-container-low)', padding: '1rem', borderRadius: 'var(--radius-md)' }}>
-                      <div style={{ fontSize: '0.7rem', color: 'var(--on-surface-variant)', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 700, marginBottom: '0.4rem' }}>Budget Range</div>
-                      <div style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--primary)' }}>₹{selectedRequest.budgetMin} - ₹{selectedRequest.budgetMax}</div>
+                      <div style={{ fontSize: '0.7rem', color: 'var(--on-surface-variant)', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 700, marginBottom: '0.4rem' }}>Budget</div>
+                      <div style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--primary)' }}>₹{selectedRequest.budget || 0}</div>
                     </div>
                     <div style={{ background: 'var(--surface-container-low)', padding: '1rem', borderRadius: 'var(--radius-md)' }}>
-                      <div style={{ fontSize: '0.7rem', color: 'var(--on-surface-variant)', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 700, marginBottom: '0.4rem' }}>Urgency</div>
-                      <div style={{ fontSize: '1.1rem', fontWeight: 800, color: selectedRequest.urgency === 'Urgent' ? '#e53e3e' : '#38a169' }}>{selectedRequest.urgency}</div>
+                      <div style={{ fontSize: '0.7rem', color: 'var(--on-surface-variant)', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 700, marginBottom: '0.4rem' }}>Status</div>
+                      <div style={{ fontSize: '1.1rem', fontWeight: 800, color: '#38a169' }}>{selectedRequest.status}</div>
                     </div>
                   </div>
 
@@ -688,30 +689,30 @@ export default function ProviderDashboard() {
                   <div style={{ marginBottom: '2.5rem', padding: '0 1rem' }}>
                     <input 
                       type="range" 
-                      min={selectedRequest.budgetMin} 
-                      max={selectedRequest.budgetMax} 
+                      min="0" 
+                      max={(selectedRequest.budget || 2000) * 1.5} 
                       value={currentBidPrice} 
                       onChange={(e) => setCurrentBidPrice(parseInt(e.target.value))}
                       style={{ width: '100%', height: '8px', cursor: 'pointer', accentColor: 'var(--primary)' }}
                     />
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '0.8rem', fontSize: '0.8rem', color: 'var(--on-surface-variant)', fontWeight: 600 }}>
-                      <span>₹{selectedRequest.budgetMin}</span>
-                      <span>₹{selectedRequest.budgetMax}</span>
+                      <span>₹0</span>
+                      <span>₹{(selectedRequest.budget || 2000) * 1.5}</span>
                     </div>
                   </div>
 
-                  <div className="ai-suggested-card" style={{ marginBottom: '2rem', padding: '1.2rem', borderRadius: 'var(--radius-lg)', textAlign: 'left', cursor: 'pointer' }} onClick={() => setCurrentBidPrice(Math.round(selectedRequest.budgetMin + (selectedRequest.budgetMax - selectedRequest.budgetMin) * 0.4))}>
+                  <div className="ai-suggested-card" style={{ marginBottom: '2rem', padding: '1.2rem', borderRadius: 'var(--radius-lg)', textAlign: 'left', cursor: 'pointer' }} onClick={() => setCurrentBidPrice(Math.round((selectedRequest.budget || 1000) * 0.9))}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.5rem' }}>
                       <span className="material-icons" style={{ color: 'var(--primary)', fontSize: '1.2rem' }}>auto_awesome</span>
                       <span style={{ fontSize: '0.85rem', fontWeight: 800, color: 'var(--primary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>AI Suggested Bid</span>
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
                       <div>
-                        <div style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--on-surface)' }}>₹{Math.round(selectedRequest.budgetMin + (selectedRequest.budgetMax - selectedRequest.budgetMin) * 0.4)}</div>
-                        <div style={{ fontSize: '0.7rem', color: 'var(--on-surface-variant)', marginTop: '0.2rem' }}>Based on <strong>{Math.floor(Math.random() * 10) + 5} bids</strong> in this radius</div>
+                        <div style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--on-surface)' }}>₹{Math.round((selectedRequest.budget || 1000) * 0.9)}</div>
+                        <div style={{ fontSize: '0.7rem', color: 'var(--on-surface-variant)', marginTop: '0.2rem' }}>Based on <strong>{Math.floor(Math.random() * 10) + 5} similar jobs</strong></div>
                       </div>
                       <div style={{ textAlign: 'right' }}>
-                        <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#3182ce' }}>High Demand</div>
+                        <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#3182ce' }}>Recommended</div>
                         <div style={{ fontSize: '0.65rem', color: 'var(--on-surface-variant)' }}>Apply this rate</div>
                       </div>
                     </div>
