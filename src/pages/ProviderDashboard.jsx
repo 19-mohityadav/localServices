@@ -1,12 +1,69 @@
 import { useState, useEffect } from 'react'
-import { supabase } from '../utils/supabaseClient'
 import { Link } from 'react-router-dom'
+import { supabase } from '../utils/supabaseClient'
 import AiBiddingSystem from '../components/AiBiddingSystem'
 import JobExecutionWallet from '../components/JobExecutionWallet'
 import '../App.css'
 import ServiceProviderProfile from '../components/ServiceProviderProfile'
 
-// MOCK_REQUESTS removed in favor of real database fetching
+const MOCK_REQUESTS = [
+  {
+    id: 'mock-1',
+    title: 'Kitchen Sink Leakage',
+    category: 'Plumbing',
+    icon: 'plumbing',
+    color: '#2b6cb0',
+    budgetMin: 800,
+    budgetMax: 1200,
+    distance: '0.8 km',
+    urgency: 'Urgent',
+    postedAt: '5 min ago',
+    address: 'Sector 21, Gurgaon',
+  },
+  {
+    id: 'mock-2',
+    title: 'Main Board Sparking',
+    category: 'Electrical',
+    icon: 'bolt',
+    color: '#d69e2e',
+    budgetMin: 1500,
+    budgetMax: 2000,
+    distance: '1.2 km',
+    urgency: 'Urgent',
+    postedAt: '12 min ago',
+    address: 'DLF Phase 2, Gurgaon',
+  },
+  {
+    id: 'mock-3',
+    title: 'Deep House Cleaning',
+    category: 'Cleaning',
+    icon: 'cleaning_services',
+    color: '#38a169',
+    budgetMin: 600,
+    budgetMax: 900,
+    distance: '2.1 km',
+    urgency: 'Flexible',
+    postedAt: '34 min ago',
+    address: 'Cyber City, Gurgaon',
+  },
+  {
+    id: 'mock-4',
+    title: 'AC Service & Gas Refill',
+    category: 'AC Repair',
+    icon: 'ac_unit',
+    color: '#319795',
+    budgetMin: 599,
+    budgetMax: 799,
+    distance: '3.4 km',
+    urgency: 'Tomorrow',
+    postedAt: '1h ago',
+    address: 'Sushant Lok, Gurgaon',
+    description: 'Detailed description of the service requested by the user. Need a comprehensive AC servicing and gas refill for a 1.5 ton split AC. The cooling has significantly decreased recently.',
+    customerName: 'Ankit Mehta',
+    date: '27th March 2026',
+    time: '10:00 AM - 12:00 PM',
+  },
+]
 
 const MOCK_SCHEDULE = [
   { time: '10:00 AM', client: 'Meera Kapoor', service: 'Yoga Session', status: 'upcoming' },
@@ -32,60 +89,87 @@ export default function ProviderDashboard() {
   const [activeJob, setActiveJob] = useState(null)
   const [isPriceStep, setIsPriceStep] = useState(false)
   const [currentBidPrice, setCurrentBidPrice] = useState(0)
-  const [jobs, setJobs] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [user, setUser] = useState(null)
+  const [liveRequests, setLiveRequests] = useState([])
+  const [providerBids, setProviderBids] = useState([])
 
   useEffect(() => {
-    async function init() {
-      const { data: { user: authUser } } = await supabase.auth.getUser()
-      setUser(authUser)
-      fetchJobs()
-    }
-    init()
-  }, [])
+    const fetchJobs = async () => {
+      const { data, error } = await supabase
+        .from('jobs')
+        .select('*')
+        .eq('status', 'pending')
+        .order('created_at', { ascending: false });
 
-  async function fetchJobs() {
-    setLoading(true)
-    const { data, error } = await supabase
-      .from('jobs')
-      .select('*')
-      .eq('status', 'pending')
-      .order('created_at', { ascending: false })
-    
-    if (error) {
-      console.error('Error fetching jobs:', error)
-    } else {
-      setJobs(data || [])
-    }
-    setLoading(false)
-  }
+      if (data) {
+        const fetchColor = (cat) => {
+          const map = {
+            'Plumbing': '#2b6cb0', 'Electrical': '#d69e2e', 'Cleaning': '#38a169', 'AC Repair': '#319795',
+            'Carpentry': '#805ad5', 'Painting': '#dd6b20', 'Personal Trainer': '#e53e3e', 'Interior Design': '#9f7aea',
+            'Pest Control': '#38a169', 'CCTV / Security': '#e53e3e', 'Catering': '#d69e2e', 'Yoga / Wellness': '#3182ce'
+          };
+          return map[cat] || '#718096';
+        };
 
-  const handlePlaceBid = async () => {
-    if (!user || !selectedRequest) return
-    
-    try {
-      const { error } = await supabase.from('bids').insert([{
-        job_id: selectedRequest.id,
-        provider_id: user.id,
-        amount: currentBidPrice,
-        status: 'pending'
-      }])
+        const fetchIcon = (cat) => {
+          const map = {
+            'Plumbing': 'plumbing', 'Electrical': 'bolt', 'Cleaning': 'cleaning_services', 'AC Repair': 'ac_unit',
+            'Carpentry': 'build', 'Painting': 'format_paint', 'Personal Trainer': 'fitness_center', 'Interior Design': 'design_services',
+            'Pest Control': 'pest_control', 'CCTV / Security': 'camera_indoor', 'Catering': 'local_dining', 'Yoga / Wellness': 'spa'
+          };
+          return map[cat] || 'more_horiz';
+        };
 
-      if (error) throw error
+        const mapped = data.map(dbJob => ({
+          id: dbJob.id,
+          title: dbJob.title,
+          category: dbJob.category,
+          icon: fetchIcon(dbJob.category),
+          color: fetchColor(dbJob.category),
+          budgetMin: dbJob.budget ? Math.max(0, dbJob.budget - 500) : 0,
+          budgetMax: dbJob.budget || 0,
+          distance: 'Live',
+          urgency: 'New',
+          postedAt: new Date(dbJob.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}),
+          address: dbJob.location || 'Unknown',
+          description: dbJob.description || ''
+        }));
+        setLiveRequests(mapped);
+      }
+    };
 
-      setAcceptedJobs(prev => new Set([...prev, selectedRequest.id]))
-      // For UX, we show it as "Bid Placed"
-      alert('Bid placed successfully!')
-      setSelectedRequest(null)
-      setIsPriceStep(false)
-    } catch (err) {
-      console.error('Error placing bid:', err)
-      alert('Failed to place bid: ' + err.message)
-    }
-  }
+    const fetchMyBids = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+         const { data, error } = await supabase
+           .from('bids')
+           .select('*, job:jobs(*)')
+           .eq('provider_id', user.id)
+           .order('created_at', { ascending: false });
+         if (data) {
+           setProviderBids(data);
+           setAcceptedJobs(prev => new Set([...prev, ...data.map(b => b.job_id)]));
+         }
+      }
+    };
 
-  const visibleRequests = jobs.filter(r => !declinedJobs.has(r.id))
+    fetchJobs();
+    fetchMyBids();
+
+    const subscription = supabase.channel('public:jobs_and_bids')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'jobs' }, () => {
+        fetchJobs();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'bids' }, () => {
+        fetchMyBids();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(subscription);
+    };
+  }, []);
+
+  const visibleRequests = [...liveRequests, ...MOCK_REQUESTS].filter(r => !declinedJobs.has(r.id))
 
   return (
     <div className="dashboard-layout">
@@ -326,6 +410,38 @@ export default function ProviderDashboard() {
                 )}
               </div>
             </section>
+
+            {/* My Active Bids */}
+            {providerBids.length > 0 && (
+            <section className="dash-section">
+              <div className="dash-section__header">
+                <h2>My Active Bids</h2>
+                <span style={{ fontSize: '0.8rem', color: 'var(--on-surface-variant)' }}>{providerBids.length} submitted</span>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                {providerBids.map(bid => (
+                  <div key={bid.id} style={{
+                    background: '#fff', borderRadius: 'var(--radius-lg)', padding: '1.2rem 1.5rem',
+                    border: '1px solid var(--outline-variant)', display: 'flex', justifyContent: 'space-between', alignItems: 'center'
+                  }}>
+                    <div>
+                      <h4 style={{ fontSize: '0.95rem', fontWeight: 600, marginBottom: '0.2rem' }}>{bid.job?.title || 'Unknown Job'}</h4>
+                      <p style={{ fontSize: '0.78rem', color: 'var(--on-surface-variant)' }}>
+                        <span className="material-icons" style={{ fontSize: '0.8rem', verticalAlign: 'middle', marginRight: '2px' }}>location_on</span>
+                        {bid.job?.location} &nbsp;·&nbsp; {new Date(bid.created_at).toLocaleDateString()}
+                      </p>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--primary)' }}>₹{bid.amount}</div>
+                      <div style={{ fontSize: '0.7rem', color: '#dd6b20', fontWeight: 700, padding: '2px 6px', background: 'rgba(221,107,32,0.1)', borderRadius: '4px', marginTop: '4px' }}>
+                         Awaiting Reply
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+            )}
 
             {/* Top 1% Badge */}
             <section className="dash-section">
@@ -618,7 +734,31 @@ export default function ProviderDashboard() {
                     <button 
                       className="btn btn--primary" 
                       style={{ flex: 2, padding: '1rem', fontSize: '1rem' }}
-                      onClick={handlePlaceBid}
+                      onClick={async () => {
+                        if (typeof selectedRequest.id === 'string' && selectedRequest.id.startsWith('mock-')) {
+                           // Skip DB for mock requests
+                        } else {
+                           try {
+                             const { data: { user } } = await supabase.auth.getUser();
+                             if (user) {
+                               const { error } = await supabase.from('bids').insert([{
+                                 job_id: selectedRequest.id,
+                                 provider_id: user.id,
+                                 amount: currentBidPrice,
+                                 message: 'I am ready to help you with your project effectively.'
+                               }]);
+                               if (error) console.error('Error submitting bid:', error);
+                             }
+                           } catch (err) {
+                             console.error('Failed to place bid on DB:', err);
+                           }
+                        }
+
+                        setAcceptedJobs(prev => new Set([...prev, selectedRequest.id]))
+                        setActiveJob({ ...selectedRequest, bidPrice: currentBidPrice })
+                        setSelectedRequest(null)
+                        setIsPriceStep(false)
+                      }}
                     >
                       Confirm Bid — ₹{currentBidPrice}
                     </button>
