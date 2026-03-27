@@ -5,7 +5,6 @@ import '../App.css'
 import PostRequestFlow from '../components/PostRequestFlow'
 import CustomerJobsFlow from '../components/CustomerJobsFlow'
 import UserProfile from '../components/UserProfile'
-import { supabase } from '../utils/supabaseClient'
 
 // generateMockData removed in favor of real database fetching
 
