@@ -1,12 +1,69 @@
 import { useState, useEffect } from 'react'
-import { supabase } from '../utils/supabaseClient'
 import { Link } from 'react-router-dom'
+import { supabase } from '../utils/supabaseClient'
 import AiBiddingSystem from '../components/AiBiddingSystem'
 import JobExecutionWallet from '../components/JobExecutionWallet'
 import '../App.css'
 import ServiceProviderProfile from '../components/ServiceProviderProfile'
 
-// MOCK_REQUESTS removed in favor of real database fetching
+const MOCK_REQUESTS = [
+  {
+    id: 'mock-1',
+    title: 'Kitchen Sink Leakage',
+    category: 'Plumbing',
+    icon: 'plumbing',
+    color: '#2b6cb0',
+    budgetMin: 800,
+    budgetMax: 1200,
+    distance: '0.8 km',
+    urgency: 'Urgent',
+    postedAt: '5 min ago',
+    address: 'Sector 21, Gurgaon',
+  },
+  {
+    id: 'mock-2',
+    title: 'Main Board Sparking',
+    category: 'Electrical',
+    icon: 'bolt',
+    color: '#d69e2e',
+    budgetMin: 1500,
+    budgetMax: 2000,
+    distance: '1.2 km',
+    urgency: 'Urgent',
+    postedAt: '12 min ago',
+    address: 'DLF Phase 2, Gurgaon',
+  },
+  {
+    id: 'mock-3',
+    title: 'Deep House Cleaning',
+    category: 'Cleaning',
+    icon: 'cleaning_services',
+    color: '#38a169',
+    budgetMin: 600,
+    budgetMax: 900,
+    distance: '2.1 km',
+    urgency: 'Flexible',
+    postedAt: '34 min ago',
+    address: 'Cyber City, Gurgaon',
+  },
+  {
+    id: 'mock-4',
+    title: 'AC Service & Gas Refill',
+    category: 'AC Repair',
+    icon: 'ac_unit',
+    color: '#319795',
+    budgetMin: 599,
+    budgetMax: 799,
+    distance: '3.4 km',
+    urgency: 'Tomorrow',
+    postedAt: '1h ago',
+    address: 'Sushant Lok, Gurgaon',
+    description: 'Detailed description of the service requested by the user. Need a comprehensive AC servicing and gas refill for a 1.5 ton split AC. The cooling has significantly decreased recently.',
+    customerName: 'Ankit Mehta',
+    date: '27th March 2026',
+    time: '10:00 AM - 12:00 PM',
+  },
+]
 
 const MOCK_SCHEDULE = [
   { time: '10:00 AM', client: 'Meera Kapoor', service: 'Yoga Session', status: 'upcoming' },
@@ -99,60 +156,143 @@ export default function ProviderDashboard() {
   const [activeJob, setActiveJob] = useState(null)
   const [isPriceStep, setIsPriceStep] = useState(false)
   const [currentBidPrice, setCurrentBidPrice] = useState(0)
-  const [jobs, setJobs] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [user, setUser] = useState(null)
+  const [liveRequests, setLiveRequests] = useState([])
+  const [providerBids, setProviderBids] = useState([])
+  const [providerLocation, setProviderLocation] = useState(null)
+  const [searchRadius, setSearchRadius] = useState(10) // km
+  const [isLocating, setIsLocating] = useState(false)
+  const [locationError, setLocationError] = useState(null)
 
+  // Haversine formula to calculate distance between two coordinates in km
+  const haversineDistance = (lat1, lon1, lat2, lon2) => {
+    const R = 6371
+    const dLat = ((lat2 - lat1) * Math.PI) / 180
+    const dLon = ((lon2 - lon1) * Math.PI) / 180
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLon / 2) * Math.sin(dLon / 2)
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+    return R * c
+  }
+
+  // Fetch provider's live location
   useEffect(() => {
-    async function init() {
-      const { data: { user: authUser } } = await supabase.auth.getUser()
-      setUser(authUser)
-      fetchJobs()
+    if (!navigator.geolocation) {
+      setLocationError('Geolocation not supported')
+      return
     }
-    init()
+    setIsLocating(true)
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setProviderLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude })
+        setIsLocating(false)
+      },
+      (err) => {
+        console.warn('Location permission denied:', err)
+        setLocationError('Location permission denied')
+        setIsLocating(false)
+      }
+    )
   }, [])
 
-  async function fetchJobs() {
-    setLoading(true)
-    const { data, error } = await supabase
-      .from('jobs')
-      .select('*')
-      .eq('status', 'pending')
-      .order('created_at', { ascending: false })
-    
-    if (error) {
-      console.error('Error fetching jobs:', error)
-    } else {
-      setJobs(data || [])
-    }
-    setLoading(false)
-  }
+  useEffect(() => {
+    const fetchJobs = async () => {
+      const { data, error } = await supabase
+        .from('jobs')
+        .select('*')
+        .eq('status', 'pending')
+        .order('created_at', { ascending: false });
 
-  const handlePlaceBid = async () => {
-    if (!user || !selectedRequest) return
-    
-    try {
-      const { error } = await supabase.from('bids').insert([{
-        job_id: selectedRequest.id,
-        provider_id: user.id,
-        amount: currentBidPrice,
-        status: 'pending'
-      }])
+      if (data) {
+        const fetchColor = (cat) => {
+          const map = {
+            'Plumbing': '#2b6cb0', 'Electrical': '#d69e2e', 'Cleaning': '#38a169', 'AC Repair': '#319795',
+            'Carpentry': '#805ad5', 'Painting': '#dd6b20', 'Personal Trainer': '#e53e3e', 'Interior Design': '#9f7aea',
+            'Pest Control': '#38a169', 'CCTV / Security': '#e53e3e', 'Catering': '#d69e2e', 'Yoga / Wellness': '#3182ce'
+          };
+          return map[cat] || '#718096';
+        };
 
-      if (error) throw error
+        const fetchIcon = (cat) => {
+          const map = {
+            'Plumbing': 'plumbing', 'Electrical': 'bolt', 'Cleaning': 'cleaning_services', 'AC Repair': 'ac_unit',
+            'Carpentry': 'build', 'Painting': 'format_paint', 'Personal Trainer': 'fitness_center', 'Interior Design': 'design_services',
+            'Pest Control': 'pest_control', 'CCTV / Security': 'camera_indoor', 'Catering': 'local_dining', 'Yoga / Wellness': 'spa'
+          };
+          return map[cat] || 'more_horiz';
+        };
 
-      setAcceptedJobs(prev => new Set([...prev, selectedRequest.id]))
-      // For UX, we show it as "Bid Placed"
-      alert('Bid placed successfully!')
-      setSelectedRequest(null)
-      setIsPriceStep(false)
-    } catch (err) {
-      console.error('Error placing bid:', err)
-      alert('Failed to place bid: ' + err.message)
-    }
-  }
+        const mapped = data.map(dbJob => {
+          let distKm = null
+          if (providerLocation && dbJob.latitude && dbJob.longitude) {
+            distKm = haversineDistance(providerLocation.lat, providerLocation.lng, dbJob.latitude, dbJob.longitude)
+          }
+          return {
+            id: dbJob.id,
+            title: dbJob.title,
+            category: dbJob.category,
+            icon: fetchIcon(dbJob.category),
+            color: fetchColor(dbJob.category),
+            budgetMin: dbJob.budget ? Math.max(0, dbJob.budget - 500) : 0,
+            budgetMax: dbJob.budget || 0,
+            budget: dbJob.budget,
+            distance: distKm !== null ? `${distKm.toFixed(1)} km` : 'Unknown',
+            distanceKm: distKm,
+            urgency: 'New',
+            postedAt: new Date(dbJob.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}),
+            address: dbJob.location || 'Unknown',
+            description: dbJob.description || '',
+            status: dbJob.status,
+            latitude: dbJob.latitude,
+            longitude: dbJob.longitude
+          }
+        });
+        setLiveRequests(mapped);
+      }
+    };
 
-  const visibleRequests = jobs.filter(r => !declinedJobs.has(r.id))
+    const fetchMyBids = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+         const { data, error } = await supabase
+           .from('bids')
+           .select('*, job:jobs(*)')
+           .eq('provider_id', user.id)
+           .order('created_at', { ascending: false });
+         if (data) {
+           setProviderBids(data);
+           setAcceptedJobs(prev => new Set([...prev, ...data.map(b => b.job_id)]));
+         }
+      }
+    };
+
+    fetchJobs();
+    fetchMyBids();
+
+    const subscription = supabase.channel('public:jobs_and_bids')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'jobs' }, () => {
+        fetchJobs();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'bids' }, () => {
+        fetchMyBids();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(subscription);
+    };
+  }, [providerLocation]);
+
+  // Filter requests: show all if no location, filter by radius if location is available
+  const filteredRequests = liveRequests.filter(r => {
+    if (!providerLocation) return true // show all if no provider location
+    if (r.distanceKm === null) return true // show if request has no coordinates
+    return r.distanceKm <= searchRadius
+  })
+
+  const visibleRequests = [...filteredRequests, ...MOCK_REQUESTS].filter(r => !declinedJobs.has(r.id))
+
 
   return (
     <div className="dashboard-layout">
@@ -318,6 +458,113 @@ export default function ProviderDashboard() {
                 <span style={{ fontSize: '0.8rem', color: 'var(--on-surface-variant)' }}>{visibleRequests.length} open</span>
               </div>
 
+              {/* Location & Radius Filter Bar */}
+              <div style={{
+                background: 'linear-gradient(135deg, rgba(26,54,93,0.04) 0%, rgba(49,130,206,0.06) 100%)',
+                borderRadius: 'var(--radius-lg)',
+                padding: '1rem 1.2rem',
+                marginBottom: '1.2rem',
+                border: '1px solid var(--outline-variant)',
+              }}>
+                {/* Location Status */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.8rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <div style={{
+                      width: '28px', height: '28px', borderRadius: '50%',
+                      background: providerLocation ? 'rgba(56,161,105,0.12)' : isLocating ? 'rgba(49,130,206,0.12)' : 'rgba(229,62,62,0.12)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    }}>
+                      <span className="material-icons" style={{
+                        fontSize: '0.95rem',
+                        color: providerLocation ? '#38a169' : isLocating ? '#3182ce' : '#e53e3e',
+                        animation: isLocating ? 'pulse 1.5s infinite' : 'none'
+                      }}>
+                        {providerLocation ? 'my_location' : isLocating ? 'sync' : 'location_off'}
+                      </span>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '0.75rem', fontWeight: 700, color: providerLocation ? '#38a169' : '#e53e3e' }}>
+                        {providerLocation ? 'Location Active' : isLocating ? 'Detecting...' : 'Location Off'}
+                      </div>
+                      <div style={{ fontSize: '0.65rem', color: 'var(--on-surface-variant)' }}>
+                        {providerLocation 
+                          ? `${providerLocation.lat.toFixed(4)}°, ${providerLocation.lng.toFixed(4)}°` 
+                          : locationError || 'Enable location for radius filter'}
+                      </div>
+                    </div>
+                  </div>
+                  {!providerLocation && !isLocating && (
+                    <button
+                      onClick={() => {
+                        setIsLocating(true)
+                        navigator.geolocation.getCurrentPosition(
+                          (pos) => {
+                            setProviderLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude })
+                            setIsLocating(false)
+                            setLocationError(null)
+                          },
+                          (err) => {
+                            setLocationError('Permission denied')
+                            setIsLocating(false)
+                          }
+                        )
+                      }}
+                      style={{
+                        background: 'var(--primary)', color: 'white', border: 'none',
+                        borderRadius: 'var(--radius-sm)', padding: '0.3rem 0.7rem',
+                        fontSize: '0.7rem', fontWeight: 700, cursor: 'pointer',
+                        display: 'flex', alignItems: 'center', gap: '4px'
+                      }}
+                    >
+                      <span className="material-icons" style={{ fontSize: '0.85rem' }}>gps_fixed</span>
+                      Enable
+                    </button>
+                  )}
+                </div>
+
+                {/* Radius Slider */}
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.3rem' }}>
+                    <label style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--on-surface-variant)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                      Search Radius
+                    </label>
+                    <span style={{
+                      fontSize: '0.8rem', fontWeight: 800, color: 'var(--primary)',
+                      background: 'var(--primary-container)', padding: '2px 10px',
+                      borderRadius: '100px',
+                    }}>
+                      {searchRadius} km
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min="1"
+                    max="50"
+                    value={searchRadius}
+                    onChange={e => setSearchRadius(parseInt(e.target.value))}
+                    style={{ width: '100%', cursor: 'pointer', accentColor: 'var(--primary)', height: '6px' }}
+                  />
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.62rem', color: 'var(--outline)', marginTop: '2px' }}>
+                    <span>1 km</span>
+                    <span>25 km</span>
+                    <span>50 km</span>
+                  </div>
+                </div>
+
+                {/* Filter summary */}
+                {providerLocation && (
+                  <div style={{
+                    marginTop: '0.6rem', paddingTop: '0.6rem',
+                    borderTop: '1px solid var(--outline-variant)',
+                    display: 'flex', alignItems: 'center', gap: '0.4rem',
+                    fontSize: '0.72rem', color: 'var(--on-surface-variant)',
+                  }}>
+                    <span className="material-icons" style={{ fontSize: '0.85rem', color: '#3182ce' }}>filter_alt</span>
+                    Showing <strong style={{ color: 'var(--primary)' }}>{filteredRequests.length}</strong> request{filteredRequests.length !== 1 ? 's' : ''} within {searchRadius} km
+                  </div>
+                )}
+              </div>
+
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                 {visibleRequests.map(req => (
                   <div key={req.id} 
@@ -352,7 +599,7 @@ export default function ProviderDashboard() {
                             color: '#3182ce',
                           }}>Pending</span>
                         </div>
-                        <p style={{ fontSize: '0.78rem', color: 'var(--on-surface-variant)', marginBottom: '0.6rem' }}>
+                        <p style={{ fontSize: '0.78rem', color: 'var(--on-surface-variant)', marginBottom: '0.6rem', display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '4px' }}>
                           <span className="material-icons" style={{ fontSize: '0.8rem', verticalAlign: 'middle', marginRight: '2px' }}>location_on</span>
                           {req.address} &nbsp;·&nbsp; {req.distance} away &nbsp;·&nbsp; {new Date(req.created_at).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
                         </p>
@@ -398,6 +645,38 @@ export default function ProviderDashboard() {
                 )}
               </div>
             </section>
+
+            {/* My Active Bids */}
+            {providerBids.length > 0 && (
+            <section className="dash-section">
+              <div className="dash-section__header">
+                <h2>My Active Bids</h2>
+                <span style={{ fontSize: '0.8rem', color: 'var(--on-surface-variant)' }}>{providerBids.length} submitted</span>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                {providerBids.map(bid => (
+                  <div key={bid.id} style={{
+                    background: '#fff', borderRadius: 'var(--radius-lg)', padding: '1.2rem 1.5rem',
+                    border: '1px solid var(--outline-variant)', display: 'flex', justifyContent: 'space-between', alignItems: 'center'
+                  }}>
+                    <div>
+                      <h4 style={{ fontSize: '0.95rem', fontWeight: 600, marginBottom: '0.2rem' }}>{bid.job?.title || 'Unknown Job'}</h4>
+                      <p style={{ fontSize: '0.78rem', color: 'var(--on-surface-variant)' }}>
+                        <span className="material-icons" style={{ fontSize: '0.8rem', verticalAlign: 'middle', marginRight: '2px' }}>location_on</span>
+                        {bid.job?.location} &nbsp;·&nbsp; {new Date(bid.created_at).toLocaleDateString()}
+                      </p>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--primary)' }}>₹{bid.amount}</div>
+                      <div style={{ fontSize: '0.7rem', color: '#dd6b20', fontWeight: 700, padding: '2px 6px', background: 'rgba(221,107,32,0.1)', borderRadius: '4px', marginTop: '4px' }}>
+                         Awaiting Reply
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+            )}
 
             {/* Top 1% Badge */}
             <section className="dash-section">
@@ -690,7 +969,31 @@ export default function ProviderDashboard() {
                     <button 
                       className="btn btn--primary" 
                       style={{ flex: 2, padding: '1rem', fontSize: '1rem' }}
-                      onClick={handlePlaceBid}
+                      onClick={async () => {
+                        if (typeof selectedRequest.id === 'string' && selectedRequest.id.startsWith('mock-')) {
+                           // Skip DB for mock requests
+                        } else {
+                           try {
+                             const { data: { user } } = await supabase.auth.getUser();
+                             if (user) {
+                               const { error } = await supabase.from('bids').insert([{
+                                 job_id: selectedRequest.id,
+                                 provider_id: user.id,
+                                 amount: currentBidPrice,
+                                 message: 'I am ready to help you with your project effectively.'
+                               }]);
+                               if (error) console.error('Error submitting bid:', error);
+                             }
+                           } catch (err) {
+                             console.error('Failed to place bid on DB:', err);
+                           }
+                        }
+
+                        setAcceptedJobs(prev => new Set([...prev, selectedRequest.id]))
+                        setActiveJob({ ...selectedRequest, bidPrice: currentBidPrice })
+                        setSelectedRequest(null)
+                        setIsPriceStep(false)
+                      }}
                     >
                       Confirm Bid — ₹{currentBidPrice}
                     </button>
