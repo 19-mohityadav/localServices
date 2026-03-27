@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { supabase } from '../utils/supabaseClient'
 
 const CATEGORIES = [
   { icon: 'plumbing',          label: 'Plumbing',        color: '#2b6cb0' },
@@ -109,6 +110,56 @@ export default function PostRequestFlow({ onClose }) {
     radius: '5',
   })
   const [search, setSearch] = useState('')
+  const [isPublishing, setIsPublishing] = useState(false)
+
+  const handlePublish = async () => {
+    setIsPublishing(true)
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        alert('You must be logged in to post a request.')
+        return
+      }
+
+      // First, ensure the user exists in the consumers table
+      // (This is a safety check because auth.uid() might not be in consumers yet in some edge cases)
+      const { data: consumer, error: fetchError } = await supabase
+        .from('consumers')
+        .select('id')
+        .eq('id', user.id)
+        .single()
+
+      if (fetchError && fetchError.code !== 'PGRST116') {
+        throw fetchError
+      }
+
+      if (!consumer) {
+        // Create consumer profile if it doesn't exist
+        const { error: insertError } = await supabase
+          .from('consumers')
+          .insert([{ id: user.id, name: user.user_metadata?.full_name || 'Consumer' }])
+        if (insertError) throw insertError
+      }
+
+      const { error } = await supabase.from('jobs').insert([{
+        consumer_id: user.id,
+        title: form.title,
+        description: form.description,
+        category: form.service,
+        location: form.location,
+        budget: parseFloat(form.budgetMax) || parseFloat(form.budgetMin) || 0,
+        status: 'pending'
+      }])
+
+      if (error) throw error
+      setStep(6)
+    } catch (err) {
+      console.error('Error publishing job:', err)
+      alert('Failed to publish job: ' + err.message)
+    } finally {
+      setIsPublishing(false)
+    }
+  }
 
   const update = (k, v) => setForm(f => ({ ...f, [k]: v }))
 
@@ -411,11 +462,14 @@ export default function PostRequestFlow({ onClose }) {
         <button className="btn btn--ghost" onClick={() => setStep(4)} style={{ fontSize: '0.85rem' }}>← Back</button>
         <button
           className="btn btn--primary"
-          onClick={() => setStep(6)}
-          style={{ fontSize: '0.85rem', background: 'linear-gradient(135deg, #dd6b20, #e53e3e)', border: 'none', fontWeight: 700, padding: '0.6rem 1.4rem' }}
+          onClick={handlePublish}
+          disabled={isPublishing}
+          style={{ fontSize: '0.85rem', background: 'linear-gradient(135deg, #dd6b20, #e53e3e)', border: 'none', fontWeight: 700, padding: '0.6rem 1.4rem', opacity: isPublishing ? 0.7 : 1 }}
         >
-          <span className="material-icons" style={{ fontSize: '1rem', verticalAlign: 'middle', marginRight: '4px' }}>send</span>
-          Publish Request
+          <span className="material-icons" style={{ fontSize: '1rem', verticalAlign: 'middle', marginRight: '4px' }}>
+            {isPublishing ? 'hourglass_empty' : 'send'}
+          </span>
+          {isPublishing ? 'Publishing...' : 'Publish Request'}
         </button>
       </div>
     </>
