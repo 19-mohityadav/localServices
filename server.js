@@ -134,6 +134,92 @@ app.post('/send-bid-accepted', async (req, res) => {
   }
 });
 
+// ── Bid Placed Notification (to Customer) ──────────────────────────────────
+app.post('/send-bid-placed', async (req, res) => {
+  const { customerEmail, customerName, providerName, jobTitle, bidAmount } = req.body;
+
+  const mailOptions = {
+    from: `"Local Services" <${process.env.EMAIL_USER}>`,
+    to: customerEmail,
+    subject: `💼 New Bid Received for "${jobTitle}" – Local Services`,
+    html: `
+      <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #f8fafc; border-radius: 12px; overflow: hidden; border: 1px solid #e2e8f0;">
+
+        <!-- Header -->
+        <div style="background: linear-gradient(135deg, #dd6b20 0%, #c05621 100%); padding: 40px 32px; text-align: center;">
+          <div style="font-size: 52px; margin-bottom: 12px;">💼</div>
+          <h1 style="color: #ffffff; font-size: 24px; font-weight: 800; margin: 0 0 8px;">You Have a New Bid!</h1>
+          <p style="color: rgba(255,255,255,0.8); font-size: 14px; margin: 0;">A professional is ready to help you right now</p>
+        </div>
+
+        <!-- Body -->
+        <div style="padding: 36px 32px;">
+          <p style="font-size: 16px; color: #1a202c; margin: 0 0 16px;">Hi <strong>${customerName}</strong> 👋</p>
+          <p style="font-size: 15px; color: #4a5568; line-height: 1.7; margin: 0 0 28px;">
+            A verified service professional, <strong>${providerName}</strong>, has just placed a bid on your job request.
+            Log in to review their proposal and decide if you'd like to hire them!
+          </p>
+
+          <!-- Job Details Card -->
+          <div style="background: #ffffff; border-radius: 10px; padding: 24px; border: 1px solid #e2e8f0; margin-bottom: 28px;">
+            <h3 style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: #94a3b8; margin: 0 0 16px; font-weight: 700;">Bid Details</h3>
+            <table style="width: 100%; border-collapse: collapse;">
+              <tr>
+                <td style="padding: 11px 0; border-bottom: 1px solid #f1f5f9; color: #64748b; font-size: 14px; width: 38%;">Your Job</td>
+                <td style="padding: 11px 0; border-bottom: 1px solid #f1f5f9; font-weight: 700; color: #0f172a; font-size: 14px;">${jobTitle}</td>
+              </tr>
+              <tr>
+                <td style="padding: 11px 0; border-bottom: 1px solid #f1f5f9; color: #64748b; font-size: 14px;">Provider</td>
+                <td style="padding: 11px 0; border-bottom: 1px solid #f1f5f9; font-weight: 600; color: #0f172a; font-size: 14px;">${providerName}</td>
+              </tr>
+              <tr>
+                <td style="padding: 11px 0; color: #64748b; font-size: 14px;">Bid Amount</td>
+                <td style="padding: 11px 0; font-weight: 800; color: #dd6b20; font-size: 22px;">₹${bidAmount}</td>
+              </tr>
+            </table>
+          </div>
+
+          <!-- Info Banner -->
+          <div style="background: rgba(221,107,32,0.07); border: 1px solid rgba(221,107,32,0.25); border-radius: 8px; padding: 16px 20px; margin-bottom: 28px;">
+            <p style="font-size: 13px; font-weight: 700; color: #c05621; margin: 0 0 4px;">⏱️ Act quickly!</p>
+            <p style="font-size: 13px; color: #7b341e; margin: 0; line-height: 1.5;">
+              Providers are in high demand. Review this bid and accept to secure your slot before they're booked by someone else.
+            </p>
+          </div>
+
+          <!-- CTA Button -->
+          <div style="text-align: center; margin-bottom: 28px;">
+            <a href="http://localhost:5173/customer-dashboard"
+               style="display: inline-block; background: linear-gradient(135deg, #dd6b20, #c05621); color: #ffffff; padding: 15px 40px; border-radius: 8px; font-weight: 700; font-size: 15px; text-decoration: none; letter-spacing: 0.02em;">
+              Review the Bid →
+            </a>
+          </div>
+
+          <p style="font-size: 13px; color: #94a3b8; text-align: center; line-height: 1.7; margin: 0;">
+            Thank you for using Local Services!<br/>
+            <strong style="color: #64748b;">The Local Services Team</strong> 🌟
+          </p>
+        </div>
+
+        <!-- Footer -->
+        <div style="background: #f1f5f9; padding: 16px 32px; text-align: center; border-top: 1px solid #e2e8f0;">
+          <p style="font-size: 12px; color: #94a3b8; margin: 0;">
+            © ${new Date().getFullYear()} Local Services · You're receiving this because you posted a job request on our platform.
+          </p>
+        </div>
+      </div>
+    `,
+  };
+
+  try {
+    await transporter.sendMail(mailOptions);
+    res.status(200).json({ success: true, message: 'Bid placement notification sent to customer' });
+  } catch (error) {
+    console.error('Bid placed email error:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`✅ Local Services email server running on port ${PORT}`);

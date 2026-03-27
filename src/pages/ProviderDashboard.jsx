@@ -5,6 +5,7 @@ import AiBiddingSystem from '../components/AiBiddingSystem'
 import JobExecutionWallet from '../components/JobExecutionWallet'
 import '../App.css'
 import ServiceProviderProfile from '../components/ServiceProviderProfile'
+import ProviderAvailabilitySchedule from '../components/ProviderAvailabilitySchedule'
 
 const MOCK_REQUESTS = [
   {
@@ -75,6 +76,7 @@ const SIDEBAR_LINKS = [
   { id: 'dashboard', icon: 'dashboard', label: 'Dashboard' },
   { id: 'jobs', icon: 'work', label: 'Explore Jobs' },
   { id: 'my_bids', icon: 'gavel', label: 'My Bids' },
+  { id: 'availability', icon: 'event_available', label: 'Availability' },
   { id: 'earnings', icon: 'payments', label: 'Earnings' },
   { id: 'profile', icon: 'person', label: 'Profile' },
 ]
@@ -437,12 +439,17 @@ export default function ProviderDashboard() {
         {!activeJob && activeTab === 'profile' && (
           <ServiceProviderProfile isEditable={true} />
         )}
+        {!activeJob && activeTab === 'availability' && (
+          <div style={{ padding: '0 1rem' }}>
+            <ProviderAvailabilitySchedule />
+          </div>
+        )}
         {!activeJob && activeTab === 'my_bids' && (
           <div style={{ padding: '0 1rem' }}>
             <ProviderBidsView providerId={user?.id} />
           </div>
         )}
-        {!activeJob && activeTab !== 'jobs' && activeTab !== 'profile' && activeTab !== 'my_bids' && (<div className="dashboard-grid">
+        {!activeJob && activeTab !== 'jobs' && activeTab !== 'profile' && activeTab !== 'my_bids' && activeTab !== 'availability' && (<div className="dashboard-grid">
           {/* Left Column */}
           <div className="dashboard-col-left">
 
@@ -976,13 +983,50 @@ export default function ProviderDashboard() {
                            try {
                              const { data: { user } } = await supabase.auth.getUser();
                              if (user) {
+                               // Fetch provider's own name
+                               const { data: providerData } = await supabase
+                                 .from('service_providers')
+                                 .select('name')
+                                 .eq('id', user.id)
+                                 .maybeSingle();
+                               const providerName = providerData?.name || 'A service provider';
+
                                const { error } = await supabase.from('bids').insert([{
                                  job_id: selectedRequest.id,
                                  provider_id: user.id,
                                  amount: currentBidPrice,
                                  message: 'I am ready to help you with your project effectively.'
                                }]);
-                               if (error) console.error('Error submitting bid:', error);
+                               if (error) {
+                                 console.error('Error submitting bid:', error);
+                               } else {
+                                 // Notify the customer by email using consumers table
+                                 try {
+                                   const consumerId = selectedRequest.consumer_id;
+                                   if (consumerId) {
+                                     const { data: consumerRow } = await supabase
+                                       .from('consumers')
+                                       .select('name, email')
+                                       .eq('id', consumerId)
+                                       .maybeSingle();
+                                     if (consumerRow?.email) {
+                                       await fetch('http://localhost:5000/send-bid-placed', {
+                                         method: 'POST',
+                                         headers: { 'Content-Type': 'application/json' },
+                                         body: JSON.stringify({
+                                           customerEmail: consumerRow.email,
+                                           customerName:  consumerRow.name || 'Customer',
+                                           providerName,
+                                           jobTitle:      selectedRequest.title || selectedRequest.service || 'your job',
+                                           bidAmount:     currentBidPrice,
+                                         }),
+                                       }).catch(e => console.warn('Email notification failed:', e));
+                                     }
+                                   }
+                                 } catch (emailErr) {
+                                   console.warn('Could not send bid notification email:', emailErr);
+                                 }
+                               }
                              }
                            } catch (err) {
                              console.error('Failed to place bid on DB:', err);
