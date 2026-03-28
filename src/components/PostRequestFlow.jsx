@@ -96,10 +96,10 @@ function ModalShell({ step, onClose, children }) {
 }
 
 /* ─────────────────────────────────────────────────────── */
-export default function PostRequestFlow({ onClose }) {
-  const [step, setStep] = useState(1)
+export default function PostRequestFlow({ onClose, initialData }) {
+  const [step, setStep] = useState(initialData?.category ? 2 : 1)
   const [form, setForm] = useState({
-    service: '',
+    service: initialData?.category || '',
     title: '',
     description: '',
     photos: false,
@@ -110,6 +110,7 @@ export default function PostRequestFlow({ onClose }) {
     date: '',
     location: 'Sector 21, Gurgaon',
     radius: '5',
+    provider_id: initialData?.provider_id || null, // Optional tracking
   })
   const [audioBlob, setAudioBlob] = useState(null)
   const [search, setSearch] = useState('')
@@ -425,10 +426,10 @@ export default function PostRequestFlow({ onClose }) {
               onClick={isRecording ? stopRecording : form.audio ? toggleAudio : startRecording}
             >
               <span className="material-icons" style={{ color: isRecording ? '#e53e3e' : form.audio ? 'var(--primary)' : 'var(--outline)', fontSize: '1.8rem', marginBottom: '0.3rem', display: 'block', animation: isRecording ? 'pulse 1.5s infinite' : 'none' }}>
-                {isRecording ? 'stop_circle' : isPlaying ? 'pause_circle' : form.audio ? 'play_circle' : 'mic'}
+                {isRecording ? 'stop_circle' : isPlayingAudio ? 'pause_circle' : form.audio ? 'play_circle' : 'mic'}
               </span>
-              <span style={{ fontSize: '0.78rem', color: isPlaying ? 'var(--primary)' : 'var(--on-surface-variant)', lineHeight: 1.3, display: 'block', fontWeight: isPlaying ? 700 : 400 }}>
-                {isRecording ? 'Recording...' : isPlaying ? 'Playing Audio' : form.audio ? 'Tap to Preview' : 'Tap to record'}
+              <span style={{ fontSize: '0.78rem', color: isPlayingAudio ? 'var(--primary)' : 'var(--on-surface-variant)', lineHeight: 1.3, display: 'block', fontWeight: isPlayingAudio ? 700 : 400 }}>
+                {isRecording ? 'Recording...' : isPlayingAudio ? 'Playing Audio' : form.audio ? 'Tap to Preview' : 'Tap to record'}
               </span>
             </div>
             {form.audio && <span className="material-icons" style={{ position: 'absolute', top: '8px', right: '8px', fontSize: '1.2rem', color: '#e53e3e', cursor: 'pointer', zIndex: 10 }} onClick={(e) => { e.preventDefault(); e.stopPropagation(); update('audio', false); if(audioRef.current) { audioRef.current.pause(); audioRef.current = null; setIsPlayingAudio(false); } }}>cancel</span>}
